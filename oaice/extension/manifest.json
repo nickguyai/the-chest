@@ -4,7 +4,8 @@
   "version": "0.1.0",
   "description": "Extracts your and assistant messages from the ChatGPT web UI and exports them as JSON or text.",
   "permissions": [
-    "activeTab"
+    "activeTab",
+    "downloads"
   ],
   "host_permissions": [
     "https://chat.openai.com/*",
@@ -13,6 +14,9 @@
   "action": {
     "default_title": "Export ChatGPT Conversation",
     "default_popup": "popup.html"
+  },
+  "background": {
+    "service_worker": "background.js"
   },
   "content_scripts": [
     {
@@ -25,4 +29,3 @@
     }
   ]
 }
-
