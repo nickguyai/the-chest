@@ -1,0 +1,18 @@
+{
+  "timestamp": "2025-11-06T23:19:54.568036-05:00",
+  "parameters": {
+    "radius": 200,
+    "segments": 300,
+    "segment_duration": 0.007,
+    "tween": "easeInOutQuad",
+    "start_angle": 0.0
+  },
+  "canvas_bounds": {
+    "x": 464,
+    "y": 107.875,
+    "width": 352,
+    "height": 352
+  },
+  "screenshot": "results/score_2025-11-06T23-19-54.568036-05-00.png",
+  "result_text": "Please draw a complete shape before calculating."
+}
