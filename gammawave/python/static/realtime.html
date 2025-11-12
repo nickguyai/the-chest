@@ -16,10 +16,10 @@
         <div class="controls">
             <!-- Provider Segmented Control -->
             <div class="segmented-control" id="providerToggle" role="tablist" aria-label="Provider">
-                <input type="radio" id="provider-openai" name="provider" value="openai" checked>
-                <label for="provider-openai" role="tab" aria-selected="true">OpenAI</label>
-                <input type="radio" id="provider-gemini" name="provider" value="gemini_live">
-                <label for="provider-gemini" role="tab" aria-selected="false">Gemini Live</label>
+                <input type="radio" id="provider-gemini" name="provider" value="gemini" checked>
+                <label for="provider-gemini" role="tab" aria-selected="true">Gemini</label>
+                <input type="radio" id="provider-openai" name="provider" value="openai">
+                <label for="provider-openai" role="tab" aria-selected="false">OpenAI</label>
             </div>
         </div>
         <div class="actions">
@@ -102,6 +102,11 @@
 
         <!-- Gemini Structured Results (Hidden by default) -->
         <section id="geminiResults" class="gemini-results" style="display: none;">
+            <div class="gemini-conversation-header">
+                <h3>Conversation</h3>
+                <button id="copyConversationButton" class="copy-button small" aria-label="Copy conversation">Copy Conversation</button>
+            </div>
+            <div id="conversationThread" class="conversation-thread"></div>
             <div class="result-section">
                 <h3>Title</h3>
                 <div id="resultTitle" class="result-content"></div>

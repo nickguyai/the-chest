@@ -7,10 +7,11 @@ let audioBuffer = new Int16Array(0);
 let wsConnected = false;
 let streamInitialized = false;
 let isAutoStarted = false;
-let currentProvider = 'openai';
+let currentProvider = 'gemini';
 let sampleRate = 24000;
 let enhanceMode = 'readability';
 let hasAutoEnhanced = false;
+let latestGeminiResult = null;
 
 // DOM elements
 const recordButton = document.getElementById('recordButton');
@@ -31,6 +32,8 @@ const uploadStatus = document.getElementById('uploadStatus');
 const progressBar = document.getElementById('progressBar');
 const progressFill = progressBar ? progressBar.querySelector('.progress-fill') : null;
 const geminiResults = document.getElementById('geminiResults');
+const conversationThread = document.getElementById('conversationThread');
+const copyConversationButton = document.getElementById('copyConversationButton');
 // Jobs & Search Panels
 const menuToggle = document.getElementById('menuToggle');
 const searchToggle = document.getElementById('searchToggle');
@@ -42,6 +45,8 @@ const jobsList = document.getElementById('jobsList');
 const searchInput = document.getElementById('searchInput');
 const searchButton = document.getElementById('searchButton');
 const searchResults = document.getElementById('searchResults');
+
+clearGeminiResults();
 
 // Configuration
 const targetSeconds = 5;
@@ -145,7 +150,9 @@ function createAudioProcessor() {
         combinedBuffer.set(pcmData, audioBuffer.length);
         audioBuffer = combinedBuffer;
         
-        if (audioBuffer.length >= 24000) {
+        if (currentProvider !== 'openai') return;
+
+        while (audioBuffer.length >= 24000) {
             const sendBuffer = audioBuffer.slice(0, 24000);
             audioBuffer = audioBuffer.slice(24000);
             
@@ -259,6 +266,8 @@ async function startRecording() {
         transcript.value = '';
         enhancedTranscript.value = '';
         hasAutoEnhanced = false;
+        audioBuffer = new Int16Array(0);
+        if (currentProvider === 'gemini') clearGeminiResults();
 
         if (!streamInitialized) {
             // Check if mediaDevices API is available
@@ -285,8 +294,8 @@ async function startRecording() {
 
         isRecording = true;
         
-        if (currentProvider === 'openai' || currentProvider === 'gemini_live') {
-            // Real-time mode for both OpenAI and Gemini Live
+        if (currentProvider === 'openai') {
+            // Real-time mode for OpenAI
             await ws.send(JSON.stringify({ 
                 type: 'start_recording',
                 provider: currentProvider 
@@ -310,8 +319,8 @@ async function stopRecording() {
     isRecording = false;
     stopTimer();
     
-    if (currentProvider === 'openai' || currentProvider === 'gemini_live') {
-        // Real-time mode for both OpenAI and Gemini Live
+    if (currentProvider === 'openai') {
+        // Real-time mode for OpenAI
         if (audioBuffer.length > 0 && ws.readyState === WebSocket.OPEN) {
             ws.send(audioBuffer.buffer);
             audioBuffer = new Int16Array(0);
@@ -344,8 +353,9 @@ async function stopRecording() {
 
 // Event listeners
 recordButton.onclick = () => isRecording ? stopRecording() : startRecording();
-copyButton && (copyButton.onclick = () => copyToClipboard(transcript.value, copyButton));
+copyButton && (copyButton.onclick = () => handleTranscriptCopy());
 copyEnhancedButton && (copyEnhancedButton.onclick = () => copyToClipboard(enhancedTranscript.value, copyEnhancedButton));
+copyConversationButton && (copyConversationButton.onclick = () => handleConversationCopy());
 
 // Handle spacebar toggle
 document.addEventListener('keydown', (event) => {
@@ -547,7 +557,7 @@ function setupProviderToggle() {
     providerToggle.querySelectorAll('input[name="provider"]').forEach((input) => {
         input.addEventListener('change', (e) => {
             currentProvider = e.target.value;
-            geminiResults.style.display = 'none';
+            clearGeminiResults();
             if (isRecording) stopRecording();
         });
     });
@@ -773,45 +783,132 @@ async function runSearch() {
     }
 }
 
+function buildConversationString(segments = []) {
+    if (!segments.length) return '';
+    return segments.map(segment => {
+        const speaker = segment.speaker || 'Speaker';
+        const start = segment.start_time || '';
+        const end = segment.end_time || '';
+        const timeRange = [start, end].filter(Boolean).join(' - ');
+        const header = timeRange ? `${speaker} [${timeRange}]` : speaker;
+        const content = segment.content || '';
+        return `${header}: ${content}`.trim();
+    }).join('\n');
+}
+
+function renderConversationBubbles(segments = []) {
+    if (!conversationThread) return;
+    conversationThread.innerHTML = '';
+    if (!segments.length) {
+        const emptyState = document.createElement('div');
+        emptyState.className = 'conversation-empty';
+        emptyState.textContent = 'No speakers detected yet.';
+        conversationThread.appendChild(emptyState);
+        return;
+    }
+
+    const alignmentMap = new Map();
+    const alignments = ['left', 'right'];
+    let nextIndex = 0;
+
+    segments.forEach(segment => {
+        const speaker = segment.speaker || 'Speaker';
+        if (!alignmentMap.has(speaker)) {
+            alignmentMap.set(speaker, alignments[nextIndex % alignments.length]);
+            nextIndex += 1;
+        }
+        const alignment = alignmentMap.get(speaker);
+
+        const bubble = document.createElement('div');
+        bubble.classList.add('chat-bubble', alignment);
+
+        const speakerEl = document.createElement('div');
+        speakerEl.classList.add('speaker-name');
+        speakerEl.textContent = speaker;
+        bubble.appendChild(speakerEl);
+
+        if (segment.content) {
+            const textEl = document.createElement('div');
+            textEl.classList.add('bubble-text');
+            textEl.textContent = segment.content;
+            bubble.appendChild(textEl);
+        }
+
+        const timeRange = [segment.start_time, segment.end_time].filter(Boolean).join(' - ');
+        if (timeRange) {
+            const metaEl = document.createElement('div');
+            metaEl.classList.add('bubble-meta');
+            metaEl.textContent = timeRange;
+            bubble.appendChild(metaEl);
+        }
+
+        conversationThread.appendChild(bubble);
+    });
+}
+
+function clearGeminiResults() {
+    latestGeminiResult = null;
+    if (geminiResults) geminiResults.style.display = 'none';
+    if (conversationThread) conversationThread.innerHTML = '';
+    const title = document.getElementById('resultTitle');
+    const summary = document.getElementById('resultSummary');
+    const segments = document.getElementById('resultSegments');
+    if (title) title.textContent = '';
+    if (summary) summary.textContent = '';
+    if (segments) segments.innerHTML = '';
+    if (copyConversationButton) copyConversationButton.disabled = true;
+}
+
+async function handleTranscriptCopy() {
+    if (!copyButton) return;
+    if (latestGeminiResult?.speech_segments?.length && currentProvider === 'gemini') {
+        const conversationText = buildConversationString(latestGeminiResult.speech_segments);
+        await copyToClipboard(conversationText, copyButton);
+        return;
+    }
+    await copyToClipboard(transcript.value, copyButton);
+}
+
+async function handleConversationCopy() {
+    if (!copyConversationButton) return;
+    if (!latestGeminiResult?.speech_segments?.length) {
+        showCopiedFeedback(copyConversationButton, 'No conversation');
+        return;
+    }
+    const conversationText = buildConversationString(latestGeminiResult.speech_segments);
+    await copyToClipboard(conversationText, copyConversationButton);
+}
+
 function displayGeminiResults(result) {
-    // Show results container
-    geminiResults.style.display = 'block';
-    
-    // Display title
-    document.getElementById('resultTitle').textContent = result.title || 'No title';
-    
-    // Display segments
+    latestGeminiResult = result;
+
+    if (geminiResults) geminiResults.style.display = 'block';
+    if (copyConversationButton) copyConversationButton.disabled = !(result.speech_segments && result.speech_segments.length);
+
+    const titleNode = document.getElementById('resultTitle');
+    if (titleNode) titleNode.textContent = result.title || 'No title';
+
     const segmentsContainer = document.getElementById('resultSegments');
-    segmentsContainer.innerHTML = '';
-    
-    if (result.speech_segments && result.speech_segments.length > 0) {
-        result.speech_segments.forEach(segment => {
+    if (segmentsContainer) {
+        segmentsContainer.innerHTML = '';
+        (result.speech_segments || []).forEach(segment => {
             const segmentDiv = document.createElement('div');
             segmentDiv.className = 'segment-item';
             segmentDiv.innerHTML = `
-                <div class="segment-header">${segment.speaker} • ${segment.start_time} - ${segment.end_time}</div>
-                <div>${segment.content}</div>
+                <div class="segment-header">${segment.speaker || 'Speaker'} • ${segment.start_time || ''} - ${segment.end_time || ''}</div>
+                <div>${segment.content || ''}</div>
             `;
             segmentsContainer.appendChild(segmentDiv);
         });
     }
-    
-    // Display summary
-    document.getElementById('resultSummary').textContent = result.summary || 'No summary';
 
-    // Also set transcript text to combined segments only (exclude title/summary for copy operations)
+    const summaryNode = document.getElementById('resultSummary');
+    if (summaryNode) summaryNode.textContent = result.summary || 'No summary';
+
+    renderConversationBubbles(result.speech_segments || []);
+
     try {
-        const combined = (result.speech_segments || [])
-            .map(seg => {
-                const speaker = seg.speaker || 'speaker';
-                const start = seg.start_time || '';
-                const end = seg.end_time || '';
-                const content = seg.content || '';
-                const header = `${speaker} [${start}-${end}]`.trim();
-                return content ? `${header}: ${content}` : header;
-            })
-            .join('\n');
-        transcript.value = combined;
+        transcript.value = buildConversationString(result.speech_segments || []);
     } catch (e) {
         console.warn('Failed to build combined segments text:', e);
     }

@@ -310,6 +310,77 @@ textarea {
     margin-bottom: 5px;
 }
 
+.gemini-conversation-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.conversation-thread {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 20px;
+}
+
+.conversation-empty {
+    padding: 12px;
+    border-radius: 10px;
+    background: #2C2C2C;
+    border: 1px dashed #3a3a3c;
+    text-align: center;
+    font-size: 0.95rem;
+    color: #BFBFBC;
+}
+
+.chat-bubble {
+    max-width: 80%;
+    padding: 12px 14px;
+    border-radius: 14px;
+    background: #1D4AFF;
+    color: #fff;
+    position: relative;
+}
+
+.chat-bubble.left {
+    align-self: flex-start;
+    border-bottom-left-radius: 4px;
+}
+
+.chat-bubble.right {
+    align-self: flex-end;
+    background: #3C3C3C;
+    border-bottom-right-radius: 4px;
+}
+
+.speaker-name {
+    font-weight: 600;
+    margin-bottom: 6px;
+}
+
+.bubble-text {
+    white-space: pre-wrap;
+}
+
+.bubble-meta {
+    margin-top: 6px;
+    font-size: 0.8rem;
+    opacity: 0.8;
+}
+
+.copy-button.small {
+    position: static;
+    margin-left: auto;
+    padding: 6px 10px;
+    font-size: 0.9rem;
+}
+.copy-button.small:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
 /* Settings Button */
 .settings-button {
     position: absolute;
