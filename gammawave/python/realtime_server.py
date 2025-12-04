@@ -14,13 +14,12 @@ import datetime
 import scipy.signal
 from openai import OpenAI, AsyncOpenAI
 from pydantic import BaseModel, Field
-from typing import Generator
+from typing import Generator, Optional
 from llm_processor import get_llm_processor
 from datetime import datetime, timedelta
 from gemini_transcriber import router as gemini_router
 from jobs_api import router as jobs_router
 from job_queue import job_queue
-from gemini_live_transcriber import GeminiLiveTranscriber
 from config_manager import config
 
 # Configure logging
@@ -49,9 +48,22 @@ class AskAIRequest(BaseModel):
 class AskAIResponse(BaseModel):
     answer: str = Field(..., description="AI's answer to the question.")
 
+class HotkeySettings(BaseModel):
+    code: str = Field(..., description="KeyboardEvent.code for the hotkey trigger")
+    key: Optional[str] = Field(default=None, description="KeyboardEvent.key label")
+    ctrlKey: bool = Field(default=False, description="Whether Ctrl is required")
+    shiftKey: bool = Field(default=False, description="Whether Shift is required")
+    altKey: bool = Field(default=False, description="Whether Alt/Option is required")
+    metaKey: bool = Field(default=False, description="Whether Meta/Cmd is required")
+
+
 class SettingsRequest(BaseModel):
     openaiApiKey: str = Field(..., description="OpenAI API key")
     geminiApiKey: str = Field(..., description="Google API key")
+    hotkey: Optional[HotkeySettings] = Field(
+        default=None,
+        description="Custom recording hotkey configuration"
+    )
 
 app = FastAPI()
 
@@ -139,14 +151,11 @@ async def websocket_endpoint(websocket: WebSocket):
     }))
     
     client = None
-    gemini_client = None
-    gemini_listening_task = None
     current_provider = "openai"  # Default provider
     audio_processor = AudioProcessor()
     audio_buffer = []
     recording_stopped = asyncio.Event()
     openai_ready = asyncio.Event()
-    gemini_ready = asyncio.Event()
     pending_audio_chunks = []
     # Buffer to accumulate OpenAI streamed text for JSON parsing
     current_response_text = ""
@@ -196,98 +205,6 @@ async def websocket_endpoint(websocket: WebSocket):
                 "content": "Failed to initialize OpenAI connection"
             }))
             return False
-
-    async def initialize_gemini():
-        nonlocal gemini_client
-        try:
-            # Clear the ready flag while initializing
-            gemini_ready.clear()
-            
-            gemini_client = GeminiLiveTranscriber(GOOGLE_API_KEY)
-            
-            # Set up handlers
-            gemini_client.on_transcription = handle_gemini_transcription
-            gemini_client.on_model_response = handle_gemini_model_response
-            gemini_client.on_error = handle_gemini_error
-            gemini_client.on_connected = handle_gemini_connected
-            gemini_client.on_disconnected = handle_gemini_disconnected
-            
-            # Connect to Gemini Live
-            await gemini_client.connect(
-                system_instruction=(
-                    "You are a real-time speech transcription service. "
-                    "Transcribe all spoken audio accurately and return only the transcribed text. "
-                    "Do not add any explanations or formatting. "
-                    "Do not translate; preserve the original language(s) and any code-switching. "
-                    "For Chinese, output Chinese characters (不要拼音) with proper punctuation."
-                )
-            )
-            
-            # Start listening for responses in a background task
-            nonlocal gemini_listening_task
-            gemini_listening_task = asyncio.create_task(gemini_client.start_listening())
-            
-            logger.info("Successfully connected to Gemini Live client")
-            return True
-        except Exception as e:
-            logger.error(f"Failed to connect to Gemini Live: {e}")
-            gemini_ready.clear()  # Ensure flag is cleared on failure
-            await websocket.send_text(json.dumps({
-                "type": "error",
-                "content": "Failed to initialize Gemini Live connection"
-            }))
-            return False
-
-    # Gemini handlers
-    async def handle_gemini_transcription(text):
-        try:
-            if websocket.client_state == WebSocketState.CONNECTED:
-                await websocket.send_text(json.dumps({
-                    "type": "text",
-                    "content": text,
-                    "isNewResponse": False
-                }))
-                logger.info("Gemini Live transcription received")
-        except Exception as e:
-            logger.error(f"Error in handle_gemini_transcription: {str(e)}", exc_info=True)
-
-    async def handle_gemini_model_response(text):
-        try:
-            if websocket.client_state == WebSocketState.CONNECTED:
-                await websocket.send_text(json.dumps({
-                    "type": "model_response",
-                    "content": text,
-                    "isNewResponse": False
-                }))
-                logger.info("Gemini Live model response received")
-        except Exception as e:
-            logger.error(f"Error in handle_gemini_model_response: {str(e)}", exc_info=True)
-
-    async def handle_gemini_error(error):
-        logger.error(f"Gemini Live error: {error}")
-        if websocket.client_state == WebSocketState.CONNECTED:
-            await websocket.send_text(json.dumps({
-                "type": "error",
-                "content": error
-            }))
-
-    async def handle_gemini_connected():
-        gemini_ready.set()
-        if websocket.client_state == WebSocketState.CONNECTED:
-            await websocket.send_text(json.dumps({
-                "type": "status",
-                "status": "connected"
-            }))
-        logger.info("Gemini Live connected")
-
-    async def handle_gemini_disconnected():
-        gemini_ready.clear()
-        if websocket.client_state == WebSocketState.CONNECTED:
-            await websocket.send_text(json.dumps({
-                "type": "status",
-                "status": "idle"
-            }))
-        logger.info("Gemini Live disconnected")
 
     # Move the handler definitions here (before initialize_openai)
     async def handle_text_delta(data):
@@ -408,7 +325,7 @@ async def websocket_endpoint(websocket: WebSocket):
     audio_queue = asyncio.Queue()
 
     async def receive_messages():
-        nonlocal client, gemini_client, gemini_listening_task, current_provider
+        nonlocal client, current_provider
         
         try:
             while True:
@@ -425,9 +342,6 @@ async def websocket_endpoint(websocket: WebSocket):
                         processed_audio = audio_processor.process_audio_chunk(data["bytes"])
                         if current_provider == "openai" and not openai_ready.is_set():
                             logger.debug("OpenAI not ready, buffering audio chunk")
-                            pending_audio_chunks.append(processed_audio)
-                        elif current_provider == "gemini_live" and not gemini_ready.is_set():
-                            logger.debug("Gemini Live not ready, buffering audio chunk")
                             pending_audio_chunks.append(processed_audio)
                         elif current_provider == "openai" and client:
                             # Track pending audio operations
@@ -449,17 +363,6 @@ async def websocket_endpoint(websocket: WebSocket):
                                     pending_audio_operations -= 1
                                     if pending_audio_operations == 0:
                                         all_audio_sent.set()  # Set event when all operations complete
-                        elif current_provider == "gemini_live" and gemini_client:
-                            # Convert sample rate from 24kHz to 16kHz for Gemini
-                            converted_audio = gemini_client.convert_sample_rate(
-                                processed_audio, 24000, 16000
-                            )
-                            await gemini_client.send_audio(converted_audio)
-                            await websocket.send_text(json.dumps({
-                                "type": "status",
-                                "status": "connected"
-                            }))
-                            logger.debug(f"Sent audio chunk to Gemini Live, size: {len(converted_audio)} bytes")
                         else:
                             logger.warning("Received audio but client is not initialized")
                             
@@ -479,9 +382,6 @@ async def websocket_endpoint(websocket: WebSocket):
                             # Initialize the appropriate client
                             if current_provider == "openai":
                                 if not await initialize_openai():
-                                    continue
-                            elif current_provider == "gemini_live":
-                                if not await initialize_gemini():
                                     continue
                             else:
                                 await websocket.send_text(json.dumps({
@@ -510,13 +410,6 @@ async def websocket_endpoint(websocket: WebSocket):
                                                 pending_audio_operations -= 1
                                                 if pending_audio_operations == 0:
                                                     all_audio_sent.set()
-                                elif current_provider == "gemini_live" and gemini_client:
-                                    for chunk in pending_audio_chunks:
-                                        # Convert sample rate for Gemini
-                                        converted_chunk = gemini_client.convert_sample_rate(
-                                            chunk, 24000, 16000
-                                        )
-                                        await gemini_client.send_audio(converted_chunk)
                                 pending_audio_chunks.clear()
                             
                         elif msg.get("type") == "stop_recording":
@@ -549,17 +442,6 @@ async def websocket_endpoint(websocket: WebSocket):
                                     "type": "status",
                                     "status": "connected"
                                 }))
-                            elif current_provider == "gemini_live" and gemini_client:
-                                # For Gemini Live, just close the connection
-                                if gemini_listening_task:
-                                    gemini_listening_task.cancel()
-                                    gemini_listening_task = None
-                                await gemini_client.close()
-                                gemini_ready.clear()
-                                await websocket.send_text(json.dumps({
-                                    "type": "status",
-                                    "status": "idle"
-                                }))
 
                 except asyncio.TimeoutError:
                     logger.debug("No message received for 30 seconds")
@@ -570,18 +452,11 @@ async def websocket_endpoint(websocket: WebSocket):
                 
         finally:
             # Cleanup when the loop exits
-            if gemini_listening_task:
-                gemini_listening_task.cancel()
             if client:
                 try:
                     await client.close()
                 except Exception as e:
                     logger.error(f"Error closing OpenAI client in receive_messages: {str(e)}")
-            if gemini_client:
-                try:
-                    await gemini_client.close()
-                except Exception as e:
-                    logger.error(f"Error closing Gemini client in receive_messages: {str(e)}")
             logger.info("Receive messages loop ended")
 
     async def send_audio_messages():
@@ -691,7 +566,8 @@ async def get_settings():
     """Get current settings"""
     return {
         "openaiApiKey": config.get_api_key("openai") or "",
-        "geminiApiKey": config.get_api_key("gemini") or ""
+        "geminiApiKey": config.get_api_key("gemini") or "",
+        "hotkey": config.get_hotkey()
     }
 
 @app.post("/api/v1/settings")
@@ -701,13 +577,19 @@ async def update_settings(request: SettingsRequest):
         # Update configuration
         config.set_api_key("openai", request.openaiApiKey)
         config.set_api_key("gemini", request.geminiApiKey)
+        if request.hotkey:
+            config.set_hotkey(request.hotkey.model_dump())
         
         # Update global variables for immediate use
         global OPENAI_API_KEY, GOOGLE_API_KEY
         OPENAI_API_KEY = request.openaiApiKey
         GOOGLE_API_KEY = request.geminiApiKey
         
-        return {"status": "success", "message": "Settings updated successfully"}
+        return {
+            "status": "success",
+            "message": "Settings updated successfully",
+            "hotkey": config.get_hotkey()
+        }
     except Exception as e:
         logger.error(f"Error updating settings: {e}")
         raise HTTPException(status_code=500, detail="Failed to update settings")

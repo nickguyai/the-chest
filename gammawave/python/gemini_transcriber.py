@@ -1,6 +1,7 @@
 import json
 import asyncio
 import logging
+import re
 from typing import Optional, Dict, Any
 import mimetypes
 import google.generativeai as genai
@@ -80,15 +81,61 @@ class GeminiAudioTranscriber:
             
             # Extract JSON from the response (in case there's additional text)
             try:
-                # Find JSON in the response
-                start_idx = response_text.find('{')
-                end_idx = response_text.rfind('}') + 1
+                # Step 1: Strip markdown code fences if present
+                cleaned_text = response_text.strip()
+                if cleaned_text.startswith('```'):
+                    # Remove opening fence (```json or ```)
+                    lines = cleaned_text.split('\n')
+                    if lines[0].startswith('```'):
+                        lines = lines[1:]
+                    # Remove closing fence
+                    if lines and lines[-1].strip().startswith('```'):
+                        lines = lines[:-1]
+                    cleaned_text = '\n'.join(lines)
                 
-                if start_idx != -1 and end_idx != -1:
-                    json_str = response_text[start_idx:end_idx]
+                # Step 2: Find JSON object boundaries
+                start_idx = cleaned_text.find('{')
+                end_idx = cleaned_text.rfind('}') + 1
+                
+                if start_idx == -1 or end_idx == 0:
+                    raise ValueError("No JSON object found in response")
+                
+                json_str = cleaned_text[start_idx:end_idx]
+                
+                # Step 3: Clean up common issues before parsing
+                # Remove any non-printable characters that might break JSON
+                # Remove control characters except newlines and tabs
+                json_str = re.sub(r'[\x00-\x08\x0B-\x0C\x0E-\x1F\x7F]', '', json_str)
+                
+                # Step 4: Try to parse JSON
+                try:
                     data = json.loads(json_str)
-                else:
-                    raise ValueError("No JSON found in response")
+                except json.JSONDecodeError as json_err:
+                    # If parsing fails, try to fix common issues
+                    logger.warning(f"Initial JSON parse failed: {json_err}, attempting fixes...")
+                    
+                    # Try removing lines with invalid characters (like the "минеральный" issue)
+                    lines = json_str.split('\n')
+                    cleaned_lines = []
+                    for line in lines:
+                        # Skip lines that look like they're outside the JSON structure
+                        stripped = line.strip()
+                        if stripped and not stripped.startswith('{') and not stripped.startswith('}') and not stripped.startswith('"') and not stripped.startswith(','):
+                            # Check if this line looks like it might be invalid content
+                            if not any(c in stripped for c in ['{', '}', ':', '[', ']', ',', '"']):
+                                logger.warning(f"Skipping potentially invalid line: {stripped[:50]}")
+                                continue
+                        cleaned_lines.append(line)
+                    
+                    json_str = '\n'.join(cleaned_lines)
+                    # Re-find boundaries after cleaning
+                    start_idx = json_str.find('{')
+                    end_idx = json_str.rfind('}') + 1
+                    if start_idx != -1 and end_idx > start_idx:
+                        json_str = json_str[start_idx:end_idx]
+                        data = json.loads(json_str)
+                    else:
+                        raise json_err
                 
                 # Convert to Pydantic model
                 segments = []

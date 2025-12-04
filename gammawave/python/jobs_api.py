@@ -22,10 +22,15 @@ class JobSummary(BaseModel):
     summary: Optional[str] = None
     created_at: str
     updated_at: str
+    error: Optional[str] = None
 
 
 class EnqueueResponse(BaseModel):
     job: JobSummary
+
+
+class ReadabilityUpdateRequest(BaseModel):
+    text: str = Field(..., min_length=1, description="Enhanced readability text")
 
 
 router = APIRouter(prefix="/api/v1", tags=["jobs"])
@@ -62,6 +67,7 @@ async def enqueue_transcription_job(file: UploadFile):
         summary=record.summary,
         created_at=record.created_at,
         updated_at=record.updated_at,
+        error=record.error,
     )
     return EnqueueResponse(job=job)
 
@@ -118,3 +124,49 @@ async def open_job_folder(job_id: str) -> Dict[str, Any]:
         return {"status": "ok", "path": str(d)}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to open folder: {e}")
+
+
+@router.post("/transcription_jobs/{job_id}/readability")
+async def save_readability(job_id: str, payload: ReadabilityUpdateRequest) -> Dict[str, Any]:
+    record = job_queue.get_job(job_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    try:
+        readability = job_queue.update_readability(job_id, payload.text)
+        return {"status": "ok", "readability": readability}
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Transcription result not found")
+    except RuntimeError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/transcription_jobs/{job_id}/retry")
+async def retry_job(job_id: str) -> Dict[str, Any]:
+    """Retry a failed transcription job using the same audio file and provider."""
+    record = job_queue.get_job(job_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    if record.status.value != "failed":
+        raise HTTPException(status_code=400, detail="Only failed jobs can be retried")
+    
+    if not record.audio_path:
+        raise HTTPException(status_code=400, detail="Job audio file not found")
+    
+    try:
+        # Retry the job by re-enqueuing it
+        retry_record = await job_queue.retry_job(job_id)
+        job = JobSummary(
+            id=retry_record.id,
+            status=retry_record.status.value,
+            title=retry_record.title,
+            summary=retry_record.summary,
+            created_at=retry_record.created_at,
+            updated_at=retry_record.updated_at,
+            error=retry_record.error,
+        )
+        return {"status": "ok", "job": job}
+    except Exception as e:
+        logger.error(f"Failed to retry job {job_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to retry job: {str(e)}")

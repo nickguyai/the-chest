@@ -7,10 +7,27 @@ let audioBuffer = new Int16Array(0);
 let wsConnected = false;
 let streamInitialized = false;
 let isAutoStarted = false;
-let currentProvider = 'openai';
+let currentProvider = 'gemini';
 let sampleRate = 24000;
 let enhanceMode = 'readability';
 let hasAutoEnhanced = false;
+let latestGeminiResult = null;
+let currentJobId = null;
+let readabilityAbortController = null;
+let toastNode = null;
+let toastTimer = null;
+const defaultHotkey = {
+    code: 'Space',
+    key: ' ',
+    ctrlKey: false,
+    shiftKey: false,
+    altKey: false,
+    metaKey: false
+};
+let configuredHotkey = { ...defaultHotkey };
+let isCapturingHotkey = false;
+let hotkeyPressed = false;
+let notificationPermissionRequested = false;
 
 // DOM elements
 const recordButton = document.getElementById('recordButton');
@@ -31,6 +48,12 @@ const uploadStatus = document.getElementById('uploadStatus');
 const progressBar = document.getElementById('progressBar');
 const progressFill = progressBar ? progressBar.querySelector('.progress-fill') : null;
 const geminiResults = document.getElementById('geminiResults');
+const conversationThread = document.getElementById('conversationThread');
+const copyConversationButton = document.getElementById('copyConversationButton');
+const hotkeyDisplay = document.getElementById('hotkeyDisplay');
+const captureHotkeyButton = document.getElementById('captureHotkey');
+const resetHotkeyButton = document.getElementById('resetHotkey');
+const hotkeyHint = document.getElementById('hotkeyHint');
 // Jobs & Search Panels
 const menuToggle = document.getElementById('menuToggle');
 const searchToggle = document.getElementById('searchToggle');
@@ -43,6 +66,8 @@ const searchInput = document.getElementById('searchInput');
 const searchButton = document.getElementById('searchButton');
 const searchResults = document.getElementById('searchResults');
 
+clearGeminiResults();
+
 // Configuration
 const targetSeconds = 5;
 const urlParams = new URLSearchParams(window.location.search);
@@ -50,6 +75,104 @@ const autoStart = urlParams.get('start') === '1';
 
 // Utility functions
 const isMobileDevice = () => /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+const modifierCodes = new Set([
+    'ShiftLeft', 'ShiftRight', 'ControlLeft', 'ControlRight',
+    'AltLeft', 'AltRight', 'MetaLeft', 'MetaRight'
+]);
+
+function cloneHotkey(hotkey = defaultHotkey) {
+    return {
+        code: hotkey.code || defaultHotkey.code,
+        key: typeof hotkey.key === 'string' ? hotkey.key : defaultHotkey.key,
+        ctrlKey: Boolean(hotkey.ctrlKey),
+        shiftKey: Boolean(hotkey.shiftKey),
+        altKey: Boolean(hotkey.altKey),
+        metaKey: Boolean(hotkey.metaKey)
+    };
+}
+
+function sanitizeHotkey(value) {
+    if (!value) return cloneHotkey();
+    return cloneHotkey(value);
+}
+
+function formatHotkey(hotkey = configuredHotkey) {
+    if (!hotkey) return 'Space';
+    const segments = [];
+    if (hotkey.ctrlKey) segments.push('Ctrl');
+    if (hotkey.altKey) segments.push('Alt');
+    if (hotkey.shiftKey) segments.push('Shift');
+    if (hotkey.metaKey) segments.push('Meta');
+    let keyLabel = hotkey.code || hotkey.key || 'Key';
+    if (keyLabel.startsWith('Key')) keyLabel = keyLabel.replace('Key', '');
+    if (keyLabel.startsWith('Digit')) keyLabel = keyLabel.replace('Digit', '');
+    if (keyLabel === 'Space') keyLabel = 'Space';
+    if (!keyLabel.trim() && hotkey.key) keyLabel = hotkey.key.toUpperCase();
+    const normalizedKey = keyLabel.trim() ? keyLabel.toUpperCase() : 'KEY';
+    segments.push(normalizedKey === ' ' ? 'SPACE' : normalizedKey);
+    return segments.join(' + ');
+}
+
+function matchesHotkey(event, hotkey = configuredHotkey) {
+    if (!hotkey || !hotkey.code) return false;
+    const codeMatch = (event.code && event.code === hotkey.code) || (event.key && event.key === hotkey.key);
+    return Boolean(
+        codeMatch &&
+        event.ctrlKey === !!hotkey.ctrlKey &&
+        event.shiftKey === !!hotkey.shiftKey &&
+        event.altKey === !!hotkey.altKey &&
+        event.metaKey === !!hotkey.metaKey
+    );
+}
+
+function isTypingIntoField() {
+    const activeElement = document.activeElement;
+    if (!activeElement) return false;
+    if (activeElement.isContentEditable) return true;
+    return ['INPUT', 'TEXTAREA', 'SELECT'].includes(activeElement.tagName);
+}
+
+function setHotkeyHint(message) {
+    if (hotkeyHint) hotkeyHint.textContent = message;
+}
+
+function updateHotkeyDisplay(hotkey = configuredHotkey) {
+    if (hotkeyDisplay) {
+        hotkeyDisplay.value = formatHotkey(hotkey);
+    }
+}
+
+function handleHotkeyCapture(event) {
+    event.preventDefault();
+    if (modifierCodes.has(event.code)) {
+        setHotkeyHint('Press a non-modifier key (letters, numbers, function keys).');
+        return;
+    }
+    configuredHotkey = cloneHotkey({
+        code: event.code || event.key || defaultHotkey.code,
+        key: event.key || event.code || defaultHotkey.key,
+        ctrlKey: event.ctrlKey,
+        shiftKey: event.shiftKey,
+        altKey: event.altKey,
+        metaKey: event.metaKey
+    });
+    isCapturingHotkey = false;
+    setHotkeyHint('Shortcut captured. Remember to save your settings.');
+    updateHotkeyDisplay();
+}
+
+function beginHotkeyCapture() {
+    if (!hotkeyDisplay) return;
+    isCapturingHotkey = true;
+    hotkeyDisplay.value = 'Waiting for key...';
+    setHotkeyHint('Press the key combination you want to use.');
+}
+
+function cancelHotkeyCapture() {
+    isCapturingHotkey = false;
+    setHotkeyHint('Press "Capture" and type the shortcut you want to use.');
+    updateHotkeyDisplay();
+}
 
 async function copyToClipboard(text, button) {
     if (!text) return;
@@ -70,6 +193,54 @@ function showCopiedFeedback(button, message) {
     setTimeout(() => {
         button.textContent = originalText;
     }, 2000);
+}
+
+function showToast(message) {
+    if (!message) return;
+    if (!toastNode) {
+        toastNode = document.createElement('div');
+        toastNode.className = 'completion-toast';
+        document.body.appendChild(toastNode);
+    }
+    toastNode.textContent = message;
+    toastNode.classList.add('visible');
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => {
+        if (toastNode) toastNode.classList.remove('visible');
+    }, 2500);
+}
+
+function showCompletionNotification(message) {
+    if (typeof window === 'undefined') return;
+    if (!('Notification' in window)) {
+        showToast(message);
+        return;
+    }
+    if (Notification.permission === 'granted') {
+        new Notification(message);
+        return;
+    }
+    if (Notification.permission !== 'denied' && !notificationPermissionRequested) {
+        notificationPermissionRequested = true;
+        Notification.requestPermission().then((permission) => {
+            if (permission === 'granted') {
+                new Notification(message);
+            } else {
+                showToast(message);
+            }
+        }).catch(() => showToast(message));
+    } else {
+        showToast(message);
+    }
+}
+
+async function handleTranscriptionComplete({ source = currentProvider, text = '' } = {}) {
+    const finalText = (text || transcript.value || '').trim();
+    if (finalText && !isMobileDevice()) {
+        await copyToClipboard(finalText);
+    }
+    const sourceLabel = source === 'gemini' ? 'Gemini transcription ready' : 'Recording transcribed';
+    showCompletionNotification(sourceLabel);
 }
 
 // WAV file creation utility
@@ -145,7 +316,9 @@ function createAudioProcessor() {
         combinedBuffer.set(pcmData, audioBuffer.length);
         audioBuffer = combinedBuffer;
         
-        if (audioBuffer.length >= 24000) {
+        if (currentProvider !== 'openai') return;
+
+        while (audioBuffer.length >= 24000) {
             const sendBuffer = audioBuffer.slice(0, 24000);
             audioBuffer = audioBuffer.slice(24000);
             
@@ -205,12 +378,10 @@ function initializeWebSocket() {
             case 'status':
                 updateConnectionStatus(data.status);
                 if (data.status === 'idle') {
-                    // Auto copy transcript for speed (desktop only)
-                    if (!isMobileDevice()) copyToClipboard(transcript.value, copyButton);
                     // Auto-enhance once per session end
                     if (!hasAutoEnhanced && transcript.value.trim()) {
                         hasAutoEnhanced = true;
-                        triggerEnhancement(enhanceMode);
+                        triggerEnhancement(enhanceMode, { auto: true });
                     }
                 }
                 break;
@@ -224,6 +395,9 @@ function initializeWebSocket() {
                 if (data.isNewResponse) {
                     transcript.value = data.content;
                     stopTimer();
+                    if ((data.content || '').trim()) {
+                        handleTranscriptionComplete({ source: currentProvider, text: data.content });
+                    }
                 } else {
                     transcript.value += data.content;
                 }
@@ -258,7 +432,10 @@ async function startRecording() {
     try {
         transcript.value = '';
         enhancedTranscript.value = '';
+        currentJobId = null;
         hasAutoEnhanced = false;
+        audioBuffer = new Int16Array(0);
+        if (currentProvider === 'gemini') clearGeminiResults();
 
         if (!streamInitialized) {
             // Check if mediaDevices API is available
@@ -285,8 +462,8 @@ async function startRecording() {
 
         isRecording = true;
         
-        if (currentProvider === 'openai' || currentProvider === 'gemini_live') {
-            // Real-time mode for both OpenAI and Gemini Live
+        if (currentProvider === 'openai') {
+            // Real-time mode for OpenAI
             await ws.send(JSON.stringify({ 
                 type: 'start_recording',
                 provider: currentProvider 
@@ -308,10 +485,11 @@ async function stopRecording() {
     if (!isRecording) return;
     
     isRecording = false;
+    hotkeyPressed = false;
     stopTimer();
     
-    if (currentProvider === 'openai' || currentProvider === 'gemini_live') {
-        // Real-time mode for both OpenAI and Gemini Live
+    if (currentProvider === 'openai') {
+        // Real-time mode for OpenAI
         if (audioBuffer.length > 0 && ws.readyState === WebSocket.OPEN) {
             ws.send(audioBuffer.buffer);
             audioBuffer = new Int16Array(0);
@@ -344,19 +522,9 @@ async function stopRecording() {
 
 // Event listeners
 recordButton.onclick = () => isRecording ? stopRecording() : startRecording();
-copyButton && (copyButton.onclick = () => copyToClipboard(transcript.value, copyButton));
+copyButton && (copyButton.onclick = () => handleTranscriptCopy());
 copyEnhancedButton && (copyEnhancedButton.onclick = () => copyToClipboard(enhancedTranscript.value, copyEnhancedButton));
-
-// Handle spacebar toggle
-document.addEventListener('keydown', (event) => {
-    if (event.code === 'Space') {
-        const activeElement = document.activeElement;
-        if (!activeElement.tagName.match(/INPUT|TEXTAREA/) && !activeElement.isContentEditable) {
-            event.preventDefault();
-            recordButton.click();
-        }
-    }
-});
+copyConversationButton && (copyConversationButton.onclick = () => handleConversationCopy());
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', () => {
@@ -367,6 +535,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setupEnhanceMode();
     setupDropzone();
     setupSettings();
+    updateHotkeyDisplay();
 
     // Jobs & search panel actions
     if (menuToggle) menuToggle.onclick = () => jobsPanel && jobsPanel.classList.toggle('open');
@@ -391,23 +560,32 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 // Readability and AI handlers
-async function runReadability() {
-    startTimer();
-    const inputText = transcript.value.trim();
+async function runReadability(options = {}) {
+    const { auto = false, jobId = currentJobId, textOverride = null } = options;
+    const inputText = (textOverride ?? transcript.value).trim();
     if (!inputText) {
-        alert('Please enter text to enhance readability.');
-        stopTimer();
+        if (!auto) alert('Please enter text to enhance readability.');
         return;
     }
+
+    if (readabilityAbortController) {
+        readabilityAbortController.abort();
+    }
+    readabilityAbortController = new AbortController();
+    const { signal } = readabilityAbortController;
+
+    if (!auto) startTimer();
 
     try {
         const response = await fetch('/api/v1/readability', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text: inputText })
+            body: JSON.stringify({ text: inputText }),
+            signal
         });
 
         if (!response.ok) throw new Error('Readability enhancement failed');
+        if (!response.body) throw new Error('No readability response body');
 
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
@@ -421,13 +599,40 @@ async function runReadability() {
             enhancedTranscript.scrollTop = enhancedTranscript.scrollHeight;
         }
 
-        if (!isMobileDevice()) copyToClipboard(fullText, copyEnhancedButton);
-        stopTimer();
+        if (!auto && !isMobileDevice()) copyToClipboard(fullText, copyEnhancedButton);
+        if (jobId && fullText.trim()) await persistReadability(jobId, fullText, auto);
 
     } catch (error) {
+        if (error.name === 'AbortError') return;
         console.error('Error:', error);
-        alert('Error enhancing readability');
-        stopTimer();
+        if (!auto) alert('Error enhancing readability');
+    } finally {
+        if (!auto) stopTimer();
+        if (readabilityAbortController && readabilityAbortController.signal === signal) {
+            readabilityAbortController = null;
+        }
+    }
+}
+
+async function persistReadability(jobId, text, auto = false) {
+    if (!jobId || !text) return;
+    try {
+        const response = await fetch(`/api/v1/transcription_jobs/${jobId}/readability`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text })
+        });
+        if (!response.ok) throw new Error('Failed to save readability');
+        const data = await response.json();
+        if (latestGeminiResult && currentJobId === jobId) {
+            latestGeminiResult.readability = data.readability || {
+                text,
+                updated_at: new Date().toISOString()
+            };
+        }
+    } catch (error) {
+        console.error('Failed to save readability result', error);
+        if (!auto) alert('Failed to save readability result');
     }
 }
 
@@ -502,7 +707,7 @@ async function runCorrectness() {
 }
 
 // Bind buttons only if present (legacy support)
-if (readabilityButton) readabilityButton.onclick = runReadability;
+if (readabilityButton) readabilityButton.onclick = () => runReadability();
 if (askAIButton) askAIButton.onclick = runAskAI;
 if (correctnessButton) correctnessButton.onclick = runCorrectness;
 
@@ -547,7 +752,7 @@ function setupProviderToggle() {
     providerToggle.querySelectorAll('input[name="provider"]').forEach((input) => {
         input.addEventListener('change', (e) => {
             currentProvider = e.target.value;
-            geminiResults.style.display = 'none';
+            clearGeminiResults();
             if (isRecording) stopRecording();
         });
     });
@@ -556,10 +761,28 @@ function setupProviderToggle() {
 // Enhance mode selection
 function setupEnhanceMode() {
     if (!enhanceModeControl) return;
+    const runIfTextPresent = (mode) => {
+        if (!transcript.value.trim()) return;
+        triggerEnhancement(mode);
+    };
     enhanceModeControl.querySelectorAll('input[name="enhance"]').forEach((input) => {
         input.addEventListener('change', (e) => {
             enhanceMode = e.target.value;
+            runIfTextPresent(enhanceMode);
         });
+
+        input.addEventListener('click', () => {
+            if (!input.checked) return;
+            runIfTextPresent(input.value);
+        });
+
+        const label = enhanceModeControl.querySelector(`label[for="${input.id}"]`);
+        if (label) {
+            label.addEventListener('click', () => {
+                if (!input.checked) return;
+                runIfTextPresent(input.value);
+            });
+        }
     });
 }
 
@@ -671,9 +894,11 @@ async function uploadAudioFile(file) {
 
 async function pollJobUntilDone(jobId, onStatus) {
     let status = 'pending';
+    let latestDetail = null;
     while (status === 'pending' || status === 'processing') {
         try {
             const data = await fetch(`/api/v1/transcription_jobs/${jobId}`).then(r => r.json());
+            latestDetail = data;
             status = data.status;
             if (typeof onStatus === 'function') onStatus(status);
             await loadJobs(false);
@@ -682,6 +907,10 @@ async function pollJobUntilDone(jobId, onStatus) {
             console.warn('Polling error:', e);
         }
         await new Promise(r => setTimeout(r, 1500));
+    }
+    if (status === 'completed' && latestDetail?.result) {
+        currentJobId = jobId;
+        displayGeminiResults(latestDetail.result, { autoComplete: true });
     }
     return status;
 }
@@ -694,26 +923,51 @@ async function loadJobs(openOnLoad = false) {
         jobs.forEach(job => {
             const div = document.createElement('div');
             div.className = 'job-item';
+            const isFailed = (job.status || '').toLowerCase() === 'failed';
+            const errorDisplay = isFailed && job.error ? `<div class="job-error">${escapeHtml(job.error)}</div>` : '';
+            const retryButton = isFailed ? '<button class="job-retry">Retry</button>' : '';
             div.innerHTML = `
-                <div class="status">${(job.status || '').toUpperCase()} • ${job.id}</div>
+                <div class="status ${isFailed ? 'status-failed' : ''}">${(job.status || '').toUpperCase()} • ${job.id}</div>
                 <div class="title">${job.title || ''}</div>
+                ${errorDisplay}
                 <div class="meta">${new Date(job.created_at).toLocaleString()}</div>
-                <div class="job-actions"><button class="job-open">Open</button><button class="job-delete">Delete</button></div>
+                <div class="job-actions">
+                    ${retryButton}
+                    <button class="job-open">Open</button>
+                    <button class="job-delete">Delete</button>
+                </div>
             `;
-            div.onclick = async () => {
-                const detail = await fetch(`/api/v1/transcription_jobs/${job.id}`).then(r => r.json());
-                if (detail.result) displayGeminiResults(detail.result);
-                if (detail.result?.speech_segments) {
-                    try {
-                        const combined = (detail.result.speech_segments || [])
-                            .map(seg => `${seg.speaker || 'speaker'} [${seg.start_time || ''}-${seg.end_time || ''}]: ${seg.content || ''}`)
-                            .join('\n');
-                        transcript.value = combined;
-                    } catch {}
-                }
-            };
+            div.onclick = () => openJob(job.id);
             const openBtn = div.querySelector('.job-open');
             const delBtn = div.querySelector('.job-delete');
+            const retryBtn = div.querySelector('.job-retry');
+            
+            if (retryBtn) {
+                retryBtn.onclick = async (e) => {
+                    e.stopPropagation();
+                    retryBtn.disabled = true;
+                    retryBtn.textContent = 'Retrying...';
+                    try {
+                        const res = await fetch(`/api/v1/transcription_jobs/${job.id}/retry`, { method: 'POST' });
+                        if (!res.ok) {
+                            const err = await res.json().catch(() => ({}));
+                            throw new Error(err.detail || 'Failed to retry job');
+                        }
+                        // Reload jobs list to show updated status
+                        await loadJobs(false);
+                        // Start polling for completion
+                        const data = await res.json();
+                        if (data.job) {
+                            pollJobUntilDone(data.job.id, () => {});
+                        }
+                    } catch (err) {
+                        alert(err.message || 'Failed to retry job');
+                        retryBtn.disabled = false;
+                        retryBtn.textContent = 'Retry';
+                    }
+                };
+            }
+            
             if (openBtn) openBtn.onclick = async (e) => {
                 e.stopPropagation();
                 try {
@@ -745,6 +999,47 @@ async function loadJobs(openOnLoad = false) {
     }
 }
 
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+async function openJob(jobId) {
+    if (!jobId) return;
+    try {
+        const response = await fetch(`/api/v1/transcription_jobs/${jobId}`);
+        const detail = await response.json();
+        if (!response.ok) {
+            throw new Error(detail.detail || 'Failed to load job');
+        }
+        currentJobId = jobId;
+        if (detail.result) {
+            displayGeminiResults(detail.result);
+            await ensureReadabilityForJob(jobId, detail.result);
+        } else {
+            clearGeminiResults();
+            transcript.value = '';
+            enhancedTranscript.value = '';
+        }
+    } catch (error) {
+        console.error('Failed to load job', error);
+        alert(error.message || 'Failed to load job');
+    }
+}
+
+async function ensureReadabilityForJob(jobId, result) {
+    if (!jobId || !result) return;
+    const storedText = (result.readability && result.readability.text) ? result.readability.text.trim() : '';
+    if (storedText) {
+        enhancedTranscript.value = storedText;
+        return;
+    }
+    const baseText = (transcript.value || buildReadableTranscript(result.speech_segments || []) || result.summary || '').trim();
+    if (!baseText) return;
+    await runReadability({ auto: true, jobId, textOverride: baseText });
+}
+
 async function runSearch() {
     if (!searchInput || !searchResults) return;
     const q = (searchInput.value || '').trim();
@@ -762,8 +1057,7 @@ async function runSearch() {
                 <div class="summary">${item.summary || ''}</div>
             `;
             div.onclick = async () => {
-                const detail = await fetch(`/api/v1/transcription_jobs/${item.job_id}`).then(r => r.json());
-                if (detail.result) displayGeminiResults(detail.result);
+                await openJob(item.job_id);
                 if (searchPanel) searchPanel.classList.remove('open');
             };
             searchResults.appendChild(div);
@@ -773,49 +1067,176 @@ async function runSearch() {
     }
 }
 
-function displayGeminiResults(result) {
-    // Show results container
-    geminiResults.style.display = 'block';
-    
-    // Display title
-    document.getElementById('resultTitle').textContent = result.title || 'No title';
-    
-    // Display segments
+function buildConversationString(segments = []) {
+    if (!segments.length) return '';
+    return segments.map(segment => {
+        const speaker = segment.speaker || 'Speaker';
+        const start = segment.start_time || '';
+        const end = segment.end_time || '';
+        const timeRange = [start, end].filter(Boolean).join(' - ');
+        const header = timeRange ? `${speaker} [${timeRange}]` : speaker;
+        const content = segment.content || '';
+        return `${header}: ${content}`.trim();
+    }).join('\n');
+}
+
+function buildReadableTranscript(segments = []) {
+    if (!segments.length) return '';
+    return segments
+        .map(segment => (segment.content || '').trim())
+        .filter(Boolean)
+        .join('\n');
+}
+
+function renderConversationBubbles(segments = []) {
+    if (!conversationThread) return;
+    conversationThread.innerHTML = '';
+    if (!segments.length) {
+        const emptyState = document.createElement('div');
+        emptyState.className = 'conversation-empty';
+        emptyState.textContent = 'No speakers detected yet.';
+        conversationThread.appendChild(emptyState);
+        return;
+    }
+
+    const alignmentMap = new Map();
+    const alignments = ['left', 'right'];
+    let nextIndex = 0;
+
+    segments.forEach(segment => {
+        const speaker = segment.speaker || 'Speaker';
+        if (!alignmentMap.has(speaker)) {
+            alignmentMap.set(speaker, alignments[nextIndex % alignments.length]);
+            nextIndex += 1;
+        }
+        const alignment = alignmentMap.get(speaker);
+
+        const bubble = document.createElement('div');
+        bubble.classList.add('chat-bubble', alignment);
+
+        const speakerEl = document.createElement('div');
+        speakerEl.classList.add('speaker-name');
+        speakerEl.textContent = speaker;
+        bubble.appendChild(speakerEl);
+
+        if (segment.content) {
+            const textEl = document.createElement('div');
+            textEl.classList.add('bubble-text');
+            textEl.textContent = segment.content;
+            bubble.appendChild(textEl);
+        }
+
+        const timeRange = [segment.start_time, segment.end_time].filter(Boolean).join(' - ');
+        if (timeRange) {
+            const metaEl = document.createElement('div');
+            metaEl.classList.add('bubble-meta');
+            metaEl.textContent = timeRange;
+            bubble.appendChild(metaEl);
+        }
+
+        conversationThread.appendChild(bubble);
+    });
+}
+
+function clearGeminiResults() {
+    latestGeminiResult = null;
+    currentJobId = null;
+    if (geminiResults) geminiResults.style.display = 'none';
+    if (conversationThread) conversationThread.innerHTML = '';
+    const title = document.getElementById('resultTitle');
+    const summary = document.getElementById('resultSummary');
+    const segments = document.getElementById('resultSegments');
+    if (title) title.textContent = '';
+    if (summary) summary.textContent = '';
+    if (segments) segments.innerHTML = '';
+    if (copyConversationButton) copyConversationButton.disabled = true;
+}
+
+async function handleTranscriptCopy() {
+    if (!copyButton) return;
+    await copyToClipboard(transcript.value, copyButton);
+}
+
+async function handleConversationCopy() {
+    if (!copyConversationButton) return;
+    if (!latestGeminiResult?.speech_segments?.length) {
+        showCopiedFeedback(copyConversationButton, 'No conversation');
+        return;
+    }
+    const conversationText = buildConversationString(latestGeminiResult.speech_segments);
+    await copyToClipboard(conversationText, copyConversationButton);
+}
+
+function displayGeminiResults(result, options = {}) {
+    latestGeminiResult = result;
+
+    if (geminiResults) geminiResults.style.display = 'block';
+    if (copyConversationButton) copyConversationButton.disabled = !(result.speech_segments && result.speech_segments.length);
+    if (result.readability?.text && enhancedTranscript) {
+        enhancedTranscript.value = result.readability.text;
+    }
+
+    const titleNode = document.getElementById('resultTitle');
+    if (titleNode) titleNode.textContent = result.title || 'No title';
+
     const segmentsContainer = document.getElementById('resultSegments');
-    segmentsContainer.innerHTML = '';
-    
-    if (result.speech_segments && result.speech_segments.length > 0) {
-        result.speech_segments.forEach(segment => {
+    if (segmentsContainer) {
+        segmentsContainer.innerHTML = '';
+        (result.speech_segments || []).forEach(segment => {
             const segmentDiv = document.createElement('div');
             segmentDiv.className = 'segment-item';
             segmentDiv.innerHTML = `
-                <div class="segment-header">${segment.speaker} • ${segment.start_time} - ${segment.end_time}</div>
-                <div>${segment.content}</div>
+                <div class="segment-header">${segment.speaker || 'Speaker'} • ${segment.start_time || ''} - ${segment.end_time || ''}</div>
+                <div>${segment.content || ''}</div>
             `;
             segmentsContainer.appendChild(segmentDiv);
         });
     }
-    
-    // Display summary
-    document.getElementById('resultSummary').textContent = result.summary || 'No summary';
 
-    // Also set transcript text to combined segments only (exclude title/summary for copy operations)
+    const summaryNode = document.getElementById('resultSummary');
+    if (summaryNode) summaryNode.textContent = result.summary || 'No summary';
+
+    renderConversationBubbles(result.speech_segments || []);
+
     try {
-        const combined = (result.speech_segments || [])
-            .map(seg => {
-                const speaker = seg.speaker || 'speaker';
-                const start = seg.start_time || '';
-                const end = seg.end_time || '';
-                const content = seg.content || '';
-                const header = `${speaker} [${start}-${end}]`.trim();
-                return content ? `${header}: ${content}` : header;
-            })
-            .join('\n');
-        transcript.value = combined;
+        const readable = buildReadableTranscript(result.speech_segments || []);
+        transcript.value = readable || result.summary || '';
     } catch (e) {
         console.warn('Failed to build combined segments text:', e);
     }
+
+    if (options.autoComplete) {
+        handleTranscriptionComplete({ source: 'gemini', text: transcript.value });
+    }
 }
+
+function handleGlobalKeyDown(event) {
+    if (isCapturingHotkey) {
+        handleHotkeyCapture(event);
+        return;
+    }
+    if (event.repeat || isTypingIntoField()) return;
+    if (!matchesHotkey(event)) return;
+    event.preventDefault();
+    hotkeyPressed = true;
+    if (!isRecording) startRecording();
+}
+
+function handleGlobalKeyUp(event) {
+    if (!hotkeyPressed) return;
+    if (!matchesHotkey(event)) return;
+    event.preventDefault();
+    hotkeyPressed = false;
+    if (isRecording) stopRecording();
+}
+
+window.addEventListener('blur', () => {
+    hotkeyPressed = false;
+    if (isCapturingHotkey) cancelHotkeyCapture();
+});
+
+document.addEventListener('keydown', handleGlobalKeyDown);
+document.addEventListener('keyup', handleGlobalKeyUp);
 
 // Settings handling
 function setupSettings() {
@@ -839,18 +1260,35 @@ function setupSettings() {
     
     closeModal.addEventListener('click', () => {
         settingsModal.style.display = 'none';
+        cancelHotkeyCapture();
     });
     
     window.addEventListener('click', (e) => {
         if (e.target === settingsModal) {
             settingsModal.style.display = 'none';
+            cancelHotkeyCapture();
         }
     });
     
+    if (captureHotkeyButton) {
+        captureHotkeyButton.addEventListener('click', () => {
+            beginHotkeyCapture();
+        });
+    }
+
+    if (resetHotkeyButton) {
+        resetHotkeyButton.addEventListener('click', () => {
+            configuredHotkey = cloneHotkey();
+            cancelHotkeyCapture();
+            setHotkeyHint('Reset to default Space shortcut.');
+        });
+    }
+
     saveSettings.addEventListener('click', async () => {
         const settings = {
             openaiApiKey: openaiKey.value,
-            geminiApiKey: geminiKey.value
+            geminiApiKey: geminiKey.value,
+            hotkey: configuredHotkey
         };
         
         try {
@@ -885,6 +1323,9 @@ async function loadSettings() {
             
             if (openaiKey) openaiKey.value = settings.openaiApiKey || '';
             if (geminiKey) geminiKey.value = settings.geminiApiKey || '';
+            configuredHotkey = sanitizeHotkey(settings.hotkey);
+            updateHotkeyDisplay();
+            cancelHotkeyCapture();
         }
     } catch (error) {
         console.error('Settings load error:', error);
@@ -892,8 +1333,9 @@ async function loadSettings() {
 }
 
 // Trigger enhancement by mode
-function triggerEnhancement(mode) {
-    if (mode === 'readability') return runReadability();
+function triggerEnhancement(mode, options = {}) {
+    if (mode === 'readability') return runReadability(options);
     if (mode === 'correctness') return runCorrectness();
     if (mode === 'ask') return runAskAI();
 }
+
