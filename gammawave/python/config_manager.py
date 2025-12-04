@@ -7,6 +7,15 @@ from pathlib import Path
 from typing import Dict, Optional, Any
 import logging
 
+DEFAULT_HOTKEY = {
+    "code": "Space",
+    "key": " ",
+    "ctrlKey": False,
+    "shiftKey": False,
+    "altKey": False,
+    "metaKey": False
+}
+
 logger = logging.getLogger(__name__)
 
 class ConfigManager:
@@ -25,7 +34,8 @@ class ConfigManager:
             "maxRecordings": 100,
             "audioFormat": "wav",
             "geminiModel": "gemini-2.5-pro",
-            "preserveOriginalLanguage": True
+            "preserveOriginalLanguage": True,
+            "hotkey": DEFAULT_HOTKEY.copy()
         }
         
         try:
@@ -71,6 +81,19 @@ class ConfigManager:
         """Update multiple configuration values"""
         self.config.update(updates)
         return self._save_config()
+
+    def _sanitize_hotkey(self, hotkey: Dict[str, Any]) -> Dict[str, Any]:
+        """Validate and normalize hotkey dictionaries"""
+        sanitized = DEFAULT_HOTKEY.copy()
+        if not isinstance(hotkey, dict):
+            return sanitized
+        sanitized["code"] = str(hotkey.get("code") or DEFAULT_HOTKEY["code"])
+        sanitized["key"] = str(hotkey.get("key") or DEFAULT_HOTKEY["key"])
+        sanitized["ctrlKey"] = bool(hotkey.get("ctrlKey", False))
+        sanitized["shiftKey"] = bool(hotkey.get("shiftKey", False))
+        sanitized["altKey"] = bool(hotkey.get("altKey", False))
+        sanitized["metaKey"] = bool(hotkey.get("metaKey", False))
+        return sanitized
     
     def get_api_key(self, provider: str) -> Optional[str]:
         """Get API key for a provider"""
@@ -90,6 +113,15 @@ class ConfigManager:
             return self.set(key_map[provider], key)
         return False
     
+    def get_hotkey(self) -> Dict[str, Any]:
+        """Return the configured hotkey or fallback to default"""
+        return self._sanitize_hotkey(self.config.get("hotkey", DEFAULT_HOTKEY))
+
+    def set_hotkey(self, hotkey: Dict[str, Any]) -> bool:
+        """Persist hotkey settings"""
+        self.config["hotkey"] = self._sanitize_hotkey(hotkey)
+        return self._save_config()
+
     def ensure_directories(self) -> None:
         """Ensure all required directories exist"""
         self.config_dir.mkdir(exist_ok=True)

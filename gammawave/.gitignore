@@ -1,0 +1,5 @@
+docs/
+.pytest_cache/
+python/venv/
+python/.pytest_cache/
+python/__pycache__/

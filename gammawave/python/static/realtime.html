@@ -16,10 +16,10 @@
         <div class="controls">
             <!-- Provider Segmented Control -->
             <div class="segmented-control" id="providerToggle" role="tablist" aria-label="Provider">
-                <input type="radio" id="provider-openai" name="provider" value="openai" checked>
-                <label for="provider-openai" role="tab" aria-selected="true">OpenAI</label>
-                <input type="radio" id="provider-gemini" name="provider" value="gemini_live">
-                <label for="provider-gemini" role="tab" aria-selected="false">Gemini Live</label>
+                <input type="radio" id="provider-gemini" name="provider" value="gemini" checked>
+                <label for="provider-gemini" role="tab" aria-selected="true">Gemini</label>
+                <input type="radio" id="provider-openai" name="provider" value="openai">
+                <label for="provider-openai" role="tab" aria-selected="false">OpenAI</label>
             </div>
         </div>
         <div class="actions">
@@ -102,6 +102,11 @@
 
         <!-- Gemini Structured Results (Hidden by default) -->
         <section id="geminiResults" class="gemini-results" style="display: none;">
+            <div class="gemini-conversation-header">
+                <h3>Conversation</h3>
+                <button id="copyConversationButton" class="copy-button small" aria-label="Copy conversation">Copy Conversation</button>
+            </div>
+            <div id="conversationThread" class="conversation-thread"></div>
             <div class="result-section">
                 <h3>Title</h3>
                 <div id="resultTitle" class="result-content"></div>
@@ -117,7 +122,7 @@
         </section>
     </main>
 
-    <script src="static/main.js?v=20251020"></script>
+    <script src="static/main.js?v=20251020" defer></script>
 
     <!-- Settings Modal -->
     <div id="settingsModal" class="modal">
@@ -133,6 +138,20 @@
                 <div class="setting-item">
                     <label for="geminiKey">Google API Key:</label>
                     <input type="password" id="geminiKey" placeholder="AIza...">
+                </div>
+                <div class="settings-section">
+                    <h3>Recording Hotkey</h3>
+                    <div class="setting-item">
+                        <label for="hotkeyDisplay">Start / Stop Recording</label>
+                        <div class="hotkey-input-group">
+                            <input type="text" id="hotkeyDisplay" readonly value="Space">
+                            <div class="hotkey-actions">
+                                <button type="button" id="captureHotkey" class="chip-button">Capture</button>
+                                <button type="button" id="resetHotkey" class="chip-button secondary">Reset</button>
+                            </div>
+                        </div>
+                        <p class="setting-hint" id="hotkeyHint">Press "Capture" and type the shortcut you want to use.</p>
+                    </div>
                 </div>
                 <button id="saveSettings" class="save-button">Save Settings</button>
             </div>

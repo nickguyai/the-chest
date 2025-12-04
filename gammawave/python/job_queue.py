@@ -56,6 +56,9 @@ class TranscriptionJobQueue:
     def _job_meta_path(self, job_id: str) -> Path:
         return self._job_dir(job_id) / "job.json"
 
+    def _transcription_path(self, job_id: str) -> Path:
+        return self._job_dir(job_id) / "transcription.json"
+
     def _write_job(self, record: JobRecord) -> None:
         d = self._job_dir(record.id)
         d.mkdir(parents=True, exist_ok=True)
@@ -130,6 +133,29 @@ class TranscriptionJobQueue:
         self._write_job(record)
         await self.queue.put(job_id)
         logger.info(f"transcription job sent: {job_id}")
+        return record
+
+    async def retry_job(self, job_id: str) -> JobRecord:
+        """Retry a failed job by resetting its status and re-enqueuing it."""
+        record = self._read_job(job_id)
+        if not record:
+            raise ValueError(f"Job {job_id} not found")
+        
+        if record.status != JobStatus.failed:
+            raise ValueError(f"Job {job_id} is not in failed status")
+        
+        if not record.audio_path or not Path(record.audio_path).exists():
+            raise ValueError(f"Audio file for job {job_id} not found")
+        
+        # Reset job status to pending and clear error
+        record.status = JobStatus.pending
+        record.error = None
+        record.updated_at = datetime.utcnow().isoformat()
+        self._write_job(record)
+        
+        # Re-enqueue the job
+        await self.queue.put(job_id)
+        logger.info(f"Retrying transcription job: {job_id}")
         return record
 
     # Public helpers for API layer
@@ -251,7 +277,7 @@ class TranscriptionJobQueue:
         return [j.to_dict() for j in self._list_jobs()]
 
     def read_job_result(self, job_id: str) -> Optional[Dict[str, Any]]:
-        p = self._job_dir(job_id) / "transcription.json"
+        p = self._transcription_path(job_id)
         if not p.exists():
             return None
         try:
@@ -260,6 +286,33 @@ class TranscriptionJobQueue:
         except Exception as e:
             logger.error(f"Failed reading result for {job_id}: {e}")
             return None
+
+    def update_readability(self, job_id: str, text: str) -> Dict[str, Any]:
+        """
+        Persist readability output inside the transcription payload for the job.
+        """
+        path = self._transcription_path(job_id)
+        if not path.exists():
+            raise FileNotFoundError("Transcription result not found")
+        try:
+            with open(path, "r") as f:
+                data = json.load(f)
+        except Exception as e:
+            raise RuntimeError(f"Failed to read transcription data: {e}") from e
+
+        readability = {
+            "text": text,
+            "updated_at": datetime.utcnow().isoformat()
+        }
+        data["readability"] = readability
+
+        try:
+            with open(path, "w") as f:
+                json.dump(data, f, indent=2)
+        except Exception as e:
+            raise RuntimeError(f"Failed to write readability data: {e}") from e
+
+        return readability
 
     def search(self, query: str) -> List[Dict[str, Any]]:
         q = (query or "").strip().lower()
