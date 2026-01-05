@@ -1,0 +1,363 @@
+// Kaizen OS Database Schema V4
+// PostgreSQL with Prisma ORM
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Enums
+enum TaskStatus {
+  in_progress
+  not_started
+  completed
+  backlog
+}
+
+enum UnitType {
+  THEME
+  ACTION_GATE
+  ACTION_EXPERIMENT
+  ACTION_ROUTINE
+  ACTION_OPS
+  TASK
+  VETO
+}
+
+enum EventType {
+  gate_started
+  gate_completed
+  gate_failed
+  experiment_started
+  experiment_completed
+  experiment_failed
+  experiment_pivoted
+  criteria_graded
+  routine_started
+  routine_replaced
+  ops_started
+  ops_completed
+  veto_added
+  veto_violated
+  time_logged
+  week_planned
+  season_started
+  season_ended
+  agent_mutation
+}
+
+// Users table (simplified for MVP)
+model User {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  name      String?
+  timezone  String?  @default("America/Los_Angeles") @db.VarChar(50)
+  settings  Json     @default("{}")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  cards                    Card[]
+  seasons                  Season[]
+  events                   Event[]
+  agentSessions            AgentSession[]
+  calendarAccounts         CalendarAccount[]
+  calendarEventAnnotations CalendarEventAnnotation[]
+  eventClassificationRules EventClassificationRule[]
+  routineCalendarLinks     RoutineCalendarLink[]
+  aiClassificationSuggestions AiClassificationSuggestion[]
+  cachedCalendarEvents     CachedCalendarEvent[]
+  planningSessions         PlanningSession[]
+
+  @@map("users")
+}
+
+// Agent sessions for multi-turn chat
+model AgentSession {
+  id            String   @id @default(uuid())
+  claudeSession String   @unique @map("claude_session_id")
+  userId        Int      @map("user_id")
+  title         String?
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  user     User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages AgentMessage[]
+
+  @@index([userId])
+  @@map("agent_sessions")
+}
+
+model AgentMessage {
+  id             Int      @id @default(autoincrement())
+  sessionId      String   @map("session_id")
+  role           String
+  content        String   @db.Text
+  checkpointUuid String?  @map("checkpoint_uuid")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  session AgentSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@map("agent_messages")
+}
+
+
+// Cards - unified table for themes, gates, experiments, routines, ops, tasks, vetoes
+model Card {
+  id             Int        @id @default(autoincrement())
+  userId         Int        @map("user_id")
+  parentId       Int?       @map("parent_id")
+  title          String     @db.VarChar(255)
+  description    String?    @db.Text
+  targetDate     DateTime?  @map("target_date") @db.Date
+  completionDate DateTime?  @map("completion_date") @db.Date
+  startDate      DateTime?  @map("start_date") @db.Date
+  status         TaskStatus @default(not_started)
+  unitType       UnitType   @map("unit_type")
+  seasonId       Int?       @map("season_id")
+  lagWeeks       Int?       @map("lag_weeks")
+  criteria       String[]   @default([])
+  tags           Json       @default("{}") // Arbitrary key-value pairs for custom metadata
+  createdAt      DateTime   @default(now()) @map("created_at")
+  updatedAt      DateTime   @updatedAt @map("updated_at")
+
+  // Relations
+  user     User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parent   Card?   @relation("CardHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children Card[]  @relation("CardHierarchy")
+  season   Season? @relation(fields: [seasonId], references: [id], onDelete: SetNull)
+  events   Event[]
+
+  // Calendar integration relations
+  calendarEventAnnotations CalendarEventAnnotation[]
+  eventClassificationRules EventClassificationRule[]
+  routineCalendarLinks     RoutineCalendarLink[]
+
+  @@index([userId, unitType], name: "idx_cards_user_type")
+  @@index([userId, parentId], name: "idx_cards_user_parent")
+  @@index([userId, status], name: "idx_cards_user_status")
+  @@index([seasonId], name: "idx_cards_season")
+  @@index([targetDate], name: "idx_cards_target_date")
+  @@map("cards")
+}
+
+// Seasons - time-boxed planning periods
+model Season {
+  id               Int      @id @default(autoincrement())
+  userId           Int      @map("user_id")
+  name             String   @db.VarChar(100)
+  startDate        DateTime @map("start_date") @db.Date
+  durationWeeks    Int      @map("duration_weeks")
+  utilityRate      Float    @default(40.0) @map("utility_rate")
+  themeAllocations Json     @default("{}") @map("theme_allocations") // { [themeId]: allocation (0-1) }
+  isActive         Boolean  @default(false) @map("is_active")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  user  User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cards Card[]
+
+  @@index([userId], name: "idx_seasons_user")
+  @@index([userId], name: "idx_seasons_user_active")
+  @@map("seasons")
+}
+
+// Events - append-only event log for event sourcing
+// Also used for time tracking via 'time_logged' event type
+model Event {
+  id             BigInt    @id @default(autoincrement())
+  userId         Int       @map("user_id")
+  eventType      EventType @map("event_type")
+  cardId         Int?      @map("card_id")
+  payload        Json      @default("{}")
+  occurredAt     DateTime  @default(now()) @map("occurred_at")
+  idempotencyKey String?   @map("idempotency_key") @db.VarChar(255)
+
+  // Relations
+  user User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  card Card? @relation(fields: [cardId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, idempotencyKey], name: "idx_events_idempotency")
+  @@index([userId, eventType], name: "idx_events_user_type")
+  @@index([userId, cardId], name: "idx_events_user_card")
+  @@index([userId, occurredAt(sort: Desc)], name: "idx_events_user_time")
+  @@map("events")
+}
+
+
+// ============================================
+// Calendar Integration Models (Phase 1)
+// ============================================
+
+// Calendar accounts: OAuth connections to Google/Microsoft/etc
+model CalendarAccount {
+  id                    String   @id @default(uuid())
+  userId                Int      @map("user_id")
+  provider              String   @default("google") @db.VarChar(20)
+  email                 String   @db.VarChar(255)
+  accessTokenEncrypted  String   @map("access_token_encrypted") @db.Text
+  refreshTokenEncrypted String   @map("refresh_token_encrypted") @db.Text
+  expiresAt             DateTime @map("expires_at")
+  scopes                Json     @default("[]")
+  selectedCalendarIds   Json     @default("[\"primary\"]") @map("selected_calendar_ids")
+  writeCalendarId       String?  @default("primary") @map("write_calendar_id") @db.VarChar(255)
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
+
+  user                 User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  eventAnnotations     CalendarEventAnnotation[]
+  routineCalendarLinks RoutineCalendarLink[]
+
+  @@unique([userId, provider, email])
+  @@index([userId])
+  @@map("calendar_accounts")
+}
+
+// Calendar event annotations: durable event→card linking
+model CalendarEventAnnotation {
+  id          String   @id @default(uuid())
+  userId      Int      @map("user_id")
+  accountId   String   @map("account_id")
+  calendarId  String   @map("calendar_id") @db.VarChar(255)
+  eventId     String   @map("event_id") @db.VarChar(255)
+  instanceKey String   @map("instance_key") @db.VarChar(255)
+  cardId      Int?     @map("card_id")
+  source      String   @default("manual") @db.VarChar(20)
+  confidence  Float    @default(1.0)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  user    User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  account CalendarAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  card    Card?           @relation(fields: [cardId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, accountId, calendarId, eventId, instanceKey])
+  @@index([userId])
+  @@index([cardId])
+  @@index([accountId, calendarId, eventId])
+  @@map("calendar_event_annotations")
+}
+
+// Event classification rules: auto-classify events to cards
+model EventClassificationRule {
+  id         String   @id @default(uuid())
+  userId     Int      @map("user_id")
+  matchType  String   @map("match_type") @db.VarChar(30)
+  matchValue String   @map("match_value") @db.Text
+  cardId     Int      @map("card_id")
+  priority   Int      @default(0)
+  isActive   Boolean  @default(true) @map("is_active")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  card Card @relation(fields: [cardId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, matchType, matchValue])
+  @@index([userId, isActive])
+  @@map("event_classification_rules")
+}
+
+// Routine calendar links: link routine cards to recurring GCal events
+model RoutineCalendarLink {
+  id               String   @id @default(uuid())
+  userId           Int      @map("user_id")
+  cardId           Int      @map("card_id")
+  accountId        String   @map("account_id")
+  calendarId       String   @map("calendar_id") @db.VarChar(255)
+  recurringEventId String   @map("recurring_event_id") @db.VarChar(255)
+  iCalUid          String?  @map("ical_uid") @db.VarChar(255)
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  user    User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  card    Card            @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  account CalendarAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, cardId])
+  @@unique([accountId, calendarId, recurringEventId])
+  @@index([userId])
+  @@index([accountId, recurringEventId])
+  @@map("routine_calendar_links")
+}
+
+// AI-generated suggestions for event classification
+model AiClassificationSuggestion {
+  id          String   @id @default(uuid())
+  userId      Int      @map("user_id")
+  eventTitle  String   @map("event_title") @db.VarChar(500)
+  suggestions Json     // Array of { cardId, cardTitle, confidence, votes }
+  model       String   @default("gemini-1.5-flash") @db.VarChar(50)
+  prompt      String?  @db.Text
+  rawResponse String?  @map("raw_response") @db.Text
+  latencyMs   Int?     @map("latency_ms")
+  createdAt   DateTime @default(now()) @map("created_at")
+  expiresAt   DateTime @map("expires_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, eventTitle])
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("ai_classification_suggestions")
+}
+
+
+// ============================================
+// Planning Session & Event Caching (Phase 2)
+// ============================================
+
+enum PlanningSessionStatus {
+  in_progress
+  committed
+}
+
+// Cached calendar events for faster loading and change detection
+model CachedCalendarEvent {
+  id               String   @id @default(uuid())
+  userId           Int      @map("user_id")
+  accountId        String   @map("account_id")
+  calendarId       String   @map("calendar_id") @db.VarChar(255)
+  eventId          String   @map("event_id") @db.VarChar(255)
+  summary          String?  @db.VarChar(500)
+  description      String?  @db.Text
+  location         String?  @db.VarChar(500)
+  startDateTime    DateTime @map("start_date_time")
+  endDateTime      DateTime @map("end_date_time")
+  isAllDay         Boolean  @default(false) @map("is_all_day")
+  attendees        Json     @default("[]")
+  htmlLink         String?  @map("html_link") @db.VarChar(500)
+  recurringEventId String?  @map("recurring_event_id") @db.VarChar(255)
+  iCalUID          String?  @map("ical_uid") @db.VarChar(255)
+  contentHash      String   @map("content_hash") @db.VarChar(64) // SHA256 of key fields for change detection
+  fetchedAt        DateTime @default(now()) @map("fetched_at")
+  expiresAt        DateTime @map("expires_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([accountId, calendarId, eventId])
+  @@index([userId, expiresAt])
+  @@index([userId, startDateTime, endDateTime])
+  @@map("cached_calendar_events")
+}
+
+// Planning session persistence for resumable planning
+model PlanningSession {
+  id              String                 @id @default(uuid())
+  userId          Int                    @map("user_id")
+  weekStart       String                 @map("week_start") @db.VarChar(10) // YYYY-MM-DD
+  actionStates    Json                   @default("{}") @map("action_states") // Map<actionId, { status, tasks[] }>
+  gcalAssignments Json                   @default("{}") @map("gcal_assignments") // Map<eventId, assignment>
+  status          PlanningSessionStatus  @default(in_progress)
+  createdAt       DateTime               @default(now()) @map("created_at")
+  updatedAt       DateTime               @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, weekStart])
+  @@index([userId, status])
+  @@map("planning_sessions")
+}

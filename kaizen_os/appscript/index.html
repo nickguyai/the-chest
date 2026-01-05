@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <title>Kaizen OS Sync</title>
+    <style>
+      :root {
+        --sage-green: #8B9467;
+        --sage-light: rgba(139, 148, 103, 0.08);
+        --bg-color: #F5F1EB;
+        --card-bg: rgba(254, 254, 254, 0.95);
+        --text-primary: #1A1A1A;
+        --text-secondary: #666666;
+        --border-radius: 20px;
+        --spacing-md: 24px;
+        --font-stack: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      }
+
+      body {
+        margin: 0;
+        padding: 0;
+        background-color: var(--bg-color);
+        color: var(--text-primary);
+        font-family: var(--font-stack);
+        display: flex;
+        justify-content: center;
+        align-items: center; /* Center vertically for login */
+        min-height: 100vh;
+        line-height: 1.6;
+      }
+
+      .container {
+        width: 100%;
+        max-width: 800px;
+        margin: 20px;
+        background: var(--card-bg);
+        border-radius: var(--border-radius);
+        padding: 48px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
+        border: 1px solid var(--sage-light);
+        animation: fadeIn 0.4s ease-out;
+        box-sizing: border-box;
+      }
+      
+      .login-view {
+        text-align: center;
+        max-width: 400px;
+        margin: 0 auto;
+      }
+
+      h1 {
+        font-size: 32px;
+        font-weight: 600;
+        color: var(--text-primary);
+        margin-top: 0;
+        margin-bottom: 12px;
+        letter-spacing: -0.02em;
+      }
+
+      h2 {
+        font-size: 18px;
+        font-weight: 600;
+        margin-top: 32px;
+        color: var(--text-primary);
+      }
+
+      .subtitle {
+        color: var(--text-secondary);
+        font-size: 16px;
+        margin-bottom: 32px;
+      }
+
+      .section-card {
+        background: #fff;
+        border: 1px solid var(--sage-light);
+        border-radius: 12px;
+        padding: 24px;
+        margin-bottom: 24px;
+        text-align: left;
+      }
+
+      .status-indicator {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 16px;
+      }
+
+      .dot {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        background-color: var(--sage-green);
+        box-shadow: 0 0 0 4px var(--sage-light);
+      }
+
+      .form-group {
+        margin-bottom: 20px;
+      }
+
+      label {
+        display: block;
+        font-size: 13px;
+        font-weight: 500;
+        color: var(--text-secondary);
+        margin-bottom: 8px;
+      }
+
+      input[type="text"], input[type="email"] {
+        width: 100%;
+        padding: 12px 16px;
+        border: 1px solid rgba(0,0,0,0.1);
+        border-radius: 12px;
+        font-size: 14px;
+        box-sizing: border-box;
+        transition: all 0.2s ease;
+      }
+      
+      input[readonly] {
+        background-color: #f9f9f9;
+        color: #888;
+      }
+
+      input:focus {
+        outline: none;
+        border-color: var(--sage-green);
+        box-shadow: 0 0 0 3px var(--sage-light);
+      }
+
+      .help-text {
+        font-size: 12px;
+        color: #999;
+        margin-top: 6px;
+      }
+      
+      .help-text a {
+        color: var(--sage-green);
+        text-decoration: none;
+      }
+
+      button {
+        background-color: var(--sage-green);
+        color: white;
+        border: none;
+        padding: 12px 24px;
+        border-radius: 10px;
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: transform 0.1s ease, opacity 0.2s;
+        width: 100%; /* Full width for login */
+      }
+      
+      .app-view button {
+        width: auto; /* Auto width for form */
+      }
+
+      button:hover {
+        opacity: 0.9;
+      }
+      
+      button:active {
+        transform: scale(0.98);
+      }
+      
+      button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+
+      #message, #login-message {
+        margin-top: 16px;
+        padding: 12px;
+        border-radius: 8px;
+        font-size: 14px;
+        display: none;
+      }
+      
+      .success {
+        background-color: rgba(39, 174, 96, 0.1);
+        color: #27ae60;
+      }
+      
+      .error {
+        background-color: rgba(231, 76, 60, 0.1);
+        color: #e74c3c;
+      }
+
+      .footer {
+        margin-top: 48px;
+        text-align: center;
+        color: rgba(0,0,0,0.3);
+        font-size: 13px;
+      }
+      
+      .hidden {
+        display: none !important;
+      }
+
+      @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+    </style>
+  </head>
+  <body>
+  
+    <!-- LOGIN VIEW -->
+    <div id="login-view" class="container login-view">
+       <h1>Kaizen OS</h1>
+       <div class="subtitle">Personal Sync Dashboard</div>
+       
+       <div style="margin: 40px 0;">
+         <p id="user-display" style="color: var(--text-secondary); margin-bottom: 24px; min-height: 24px;"></p>
+         
+         <button id="authBtn" onclick="authenticateUser()">
+           Login with Google
+         </button>
+         
+         <button id="continueBtn" onclick="enterApp()" class="hidden">
+           Continue to Dashboard
+         </button>
+       </div>
+       
+       <div id="login-message"></div>
+       
+       <div class="footer">
+        v4.1 • Secure Access
+      </div>
+    </div>
+
+    <!-- APP VIEW -->
+    <div id="app-view" class="container app-view hidden">
+      <h1>Kaizen OS Sync</h1>
+      <div class="subtitle">GCal → Notion Integration</div>
+      
+      <div class="section-card">
+        <div class="status-indicator">
+          <div class="dot"></div>
+          <div style="font-weight: 500;">System Active</div>
+        </div>
+        <div style="font-size: 14px; color: var(--text-secondary);">
+          Connected as <strong id="connected-email">...</strong>. <br>
+          This app runs in the background to sync your calendar hourly.
+        </div>
+      </div>
+      
+      <div class="section-card">
+        <h2>Configuration</h2>
+        <form id="configForm" onsubmit="handleFormSubmit(event)">
+          <div class="form-group">
+            <label>Email Address</label>
+            <input type="email" name="email" id="email" required placeholder="Loading..." readonly>
+          </div>
+
+          <div class="form-group">
+            <label>Notion API Key</label>
+            <input type="text" name="notion_api_key" required placeholder="secret_...">
+            <div class="help-text">
+              Create an internal integration at <a href="https://www.notion.so/profile/integrations" target="_blank">notion.so/profile/integrations</a>.
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>Database ID</label>
+            <input type="text" name="database_id" required placeholder="32-character ID">
+            <div class="help-text">
+              Found in the database URL (between / and ?). Ensure the integration is connected to this page!
+            </div>
+          </div>
+          
+          <div class="form-group">
+            <label>Calendar ID</label>
+            <input type="text" name="calendar_id" placeholder="primary" value="primary">
+            <div class="help-text">
+              Usually <code>primary</code> for your main calendar, or [email address]. Check GCal Settings > "Integrate calendar" section.
+            </div>
+          </div>
+
+          <button type="submit" id="submitBtn">Save & Start Sync</button>
+        </form>
+        <div id="message"></div>
+      </div>
+      
+      <div class="footer">
+        Kaizen OS v4 • Zen UI Implementation
+      </div>
+    </div>
+    
+    <script>
+      let currentUserEmail = "";
+
+      function authenticateUser() {
+        const authBtn = document.getElementById('authBtn');
+        const display = document.getElementById('user-display');
+        const msg = document.getElementById('login-message');
+        
+        authBtn.disabled = true;
+        authBtn.innerText = "Connecting...";
+        display.innerText = "";
+        msg.style.display = 'none';
+
+        // Step 1: Get user email (for login hint)
+        google.script.run
+          .withSuccessHandler(function(idResult) {
+             if (!idResult.success) {
+                 showError(idResult.error || "Could not identify user.");
+                 return;
+             }
+             
+             currentUserEmail = idResult.email || "";
+             authBtn.innerText = "Checking Calendar Access...";
+             
+             // Step 2: Get OAuth authorization URL (or confirm already authorized)
+             google.script.run
+                .withSuccessHandler(function(authResult) {
+                    if (authResult.error) {
+                        showError(authResult.error);
+                        return;
+                    }
+                    
+                    if (authResult.authorized) {
+                        // Already authorized - proceed to app
+                        showSuccess();
+                        return;
+                    }
+                    
+                    if (authResult.authUrl) {
+                        // Redirect to Google OAuth consent screen
+                        display.innerHTML = "Redirecting to Google for authorization...";
+                        window.top.location.href = authResult.authUrl;
+                    } else {
+                        showError("Could not generate authorization URL.");
+                    }
+                })
+                .withFailureHandler(handleRpcError)
+                .getAuthorizationUrl(currentUserEmail);
+          })
+          .withFailureHandler(handleRpcError)
+          .getUserIdentity();
+          
+          function showError(text) {
+              msg.className = 'error';
+              msg.innerText = text;
+              msg.style.display = 'block';
+              authBtn.disabled = false;
+              authBtn.innerText = "Login with Google";
+          }
+          
+          function handleRpcError(e) {
+              showError("Connection Error: " + e.message);
+          }
+          
+          function showSuccess() {
+              authBtn.classList.add('hidden');
+              document.getElementById('continueBtn').classList.remove('hidden');
+              display.innerHTML = `Logged in as <strong>${currentUserEmail}</strong> ✓ Calendar Access Granted`;
+              
+              // Fill form
+              document.getElementById('email').value = currentUserEmail;
+              document.getElementById('connected-email').innerText = currentUserEmail;
+              document.getElementById('email').readOnly = true; 
+          }
+      }
+      
+      function enterApp() {
+          document.getElementById('login-view').classList.add('hidden');
+          document.getElementById('app-view').classList.remove('hidden');
+          // Reset alignment for app view (top aligned)
+          document.body.style.alignItems = 'flex-start'; 
+          document.body.style.paddingTop = '40px';
+      }
+    
+      function handleFormSubmit(e) {
+        e.preventDefault();
+        const btn = document.getElementById('submitBtn');
+        const msg = document.getElementById('message');
+        const form = document.getElementById('configForm');
+        
+        btn.disabled = true;
+        btn.innerText = 'Setting up...';
+        msg.style.display = 'none';
+        
+        google.script.run
+          .withSuccessHandler(function(response) {
+            btn.disabled = false;
+            btn.innerText = 'Save & Start Sync';
+            msg.className = 'success';
+            msg.innerText = response.message;
+            msg.style.display = 'block';
+          })
+          .withFailureHandler(function(error) {
+            btn.disabled = false;
+            btn.innerText = 'Save & Start Sync';
+            msg.className = 'error';
+            msg.innerText = 'Error: ' + error.message;
+            msg.style.display = 'block';
+          })
+          .saveConfig(form);
+      }
+    </script>
+  </body>
+</html>

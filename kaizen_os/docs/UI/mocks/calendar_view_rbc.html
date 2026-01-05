@@ -1,0 +1,1109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kaizen OS - Guided Weekly Planning</title>
+
+  <!-- react-big-calendar CSS -->
+  <link href="https://unpkg.com/react-big-calendar@1.8.5/lib/css/react-big-calendar.css" rel="stylesheet">
+
+  <!-- Import map for ESM modules -->
+  <script type="importmap">
+  {
+    "imports": {
+      "react": "https://esm.sh/react@18.2.0",
+      "react-dom": "https://esm.sh/react-dom@18.2.0",
+      "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
+      "react-big-calendar": "https://esm.sh/react-big-calendar@1.8.5?external=react,react-dom",
+      "date-fns": "https://esm.sh/date-fns@2.30.0"
+    }
+  }
+  </script>
+
+  <style>
+    :root {
+      --color-sage: #8B9467;
+      --color-sage-light: rgba(139, 148, 103, 0.1);
+      --color-sage-border: rgba(139, 148, 103, 0.2);
+      --color-sage-border-light: rgba(139, 148, 103, 0.08);
+      --color-bg: #F5F1EB;
+      --color-card: rgba(254, 254, 254, 0.95);
+      --color-white: #FFFFFF;
+      --color-text-primary: #1A1A1A;
+      --color-text-secondary: #666666;
+      --color-text-muted: #999999;
+      --color-gcal: #4285F4;
+      --color-gcal-bg: #E8F4FD;
+      --color-orange: #F39C12;
+      --color-purple: #9B59B6;
+      --color-teal: #1ABC9C;
+      --color-red: #E74C3C;
+      --color-green: #27AE60;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-size: 14px;
+      line-height: 1.5;
+      color: var(--color-text-primary);
+      background-color: var(--color-bg);
+      min-height: 100vh;
+    }
+</style>
+</head>
+<body>
+  <div id="app-root"></div>
+</body>
+</html>
+
+<style>
+    /* Header */
+    header {
+      padding: 12px 24px;
+      border-bottom: 1px solid var(--color-sage-border-light);
+      background: var(--color-card);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .header-left { display: flex; align-items: center; gap: 20px; }
+    .logo { font-size: 20px; font-weight: 600; color: var(--color-sage); }
+
+    .breadcrumb {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: var(--color-text-muted);
+    }
+    .breadcrumb a { color: var(--color-text-secondary); text-decoration: none; }
+    .breadcrumb span { color: var(--color-text-primary); font-weight: 500; }
+
+    .header-right { display: flex; align-items: center; gap: 12px; }
+
+    .btn-secondary {
+      padding: 10px 20px;
+      border-radius: 10px;
+      border: 1px solid var(--color-sage-border);
+      background: var(--color-white);
+      color: var(--color-text-secondary);
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .btn-secondary:hover {
+      background: var(--color-sage-light);
+      border-color: var(--color-sage);
+      color: var(--color-sage);
+    }
+
+    .btn-primary {
+      padding: 10px 20px;
+      border-radius: 10px;
+      border: none;
+      background: linear-gradient(135deg, var(--color-sage), #7a8359);
+      color: white;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(139, 148, 103, 0.3);
+    }
+</style>
+
+<style>
+    /* Main Layout - Two Column */
+    .main-container {
+      display: grid;
+      grid-template-columns: 340px 1fr;
+      gap: 24px;
+      padding: 24px;
+      max-width: 1600px;
+      margin: 0 auto;
+      min-height: calc(100vh - 60px);
+    }
+
+    /* Action Panel (Left) */
+    .action-panel {
+      background: var(--color-card);
+      border: 1px solid var(--color-sage-border-light);
+      border-radius: 16px;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .progress-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--color-sage-border-light);
+      background: linear-gradient(135deg, var(--color-sage-light), transparent);
+    }
+
+    .progress-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--color-sage);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 8px;
+    }
+
+    .progress-bar-container {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .progress-bar {
+      flex: 1;
+      height: 6px;
+      background: var(--color-sage-border);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+
+    .progress-bar-fill {
+      height: 100%;
+      background: var(--color-sage);
+      border-radius: 3px;
+      transition: width 0.3s ease;
+    }
+
+    .progress-text {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--color-text-primary);
+      min-width: 50px;
+      text-align: right;
+    }
+
+    /* Action Card */
+    .action-card-container {
+      flex: 1;
+      padding: 20px;
+      overflow-y: auto;
+    }
+
+    .action-card {
+      background: var(--color-white);
+      border: 2px solid var(--color-sage);
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 16px;
+    }
+
+    .action-card-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+
+    .action-type-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+
+    .action-type-badge.gate { background: rgba(231, 76, 60, 0.1); color: var(--color-red); }
+    .action-type-badge.experiment { background: rgba(155, 89, 182, 0.1); color: var(--color-purple); }
+    .action-type-badge.routine { background: rgba(26, 188, 156, 0.1); color: var(--color-teal); }
+    .action-type-badge.ops { background: rgba(243, 156, 18, 0.1); color: var(--color-orange); }
+
+    .theme-badge {
+      font-size: 11px;
+      color: var(--color-text-muted);
+      background: var(--color-sage-light);
+      padding: 4px 8px;
+      border-radius: 4px;
+    }
+
+    .action-title {
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--color-text-primary);
+      margin-bottom: 8px;
+    }
+
+    .action-description {
+      font-size: 13px;
+      color: var(--color-text-secondary);
+      line-height: 1.6;
+      margin-bottom: 16px;
+    }
+
+    .action-meta {
+      display: flex;
+      gap: 16px;
+      padding-top: 12px;
+      border-top: 1px solid var(--color-sage-border-light);
+    }
+
+    .meta-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: var(--color-text-muted);
+    }
+
+    .meta-item svg { opacity: 0.6; }
+</style>
+
+<style>
+    /* Planned Tasks for Current Action */
+    .planned-tasks {
+      margin-top: 16px;
+    }
+
+    .planned-tasks-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--color-text-muted);
+      margin-bottom: 8px;
+    }
+
+    .planned-task-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 10px;
+      background: var(--color-sage-light);
+      border-radius: 6px;
+      margin-bottom: 6px;
+      font-size: 13px;
+    }
+
+    .planned-task-item .time {
+      font-family: 'SF Mono', monospace;
+      font-size: 11px;
+      color: var(--color-sage);
+      font-weight: 500;
+    }
+
+    .planned-task-item .title {
+      flex: 1;
+      color: var(--color-text-primary);
+    }
+
+    .planned-task-item .remove-btn {
+      width: 20px;
+      height: 20px;
+      border: none;
+      background: transparent;
+      color: var(--color-text-muted);
+      cursor: pointer;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .planned-task-item .remove-btn:hover {
+      background: rgba(231, 76, 60, 0.1);
+      color: var(--color-red);
+    }
+
+    .empty-planned {
+      padding: 16px;
+      text-align: center;
+      color: var(--color-text-muted);
+      font-size: 13px;
+      background: var(--color-sage-light);
+      border-radius: 8px;
+      border: 1px dashed var(--color-sage-border);
+    }
+
+    /* Navigation Buttons */
+    .action-nav {
+      display: flex;
+      gap: 8px;
+      padding: 16px 20px;
+      border-top: 1px solid var(--color-sage-border-light);
+      background: var(--color-white);
+    }
+
+    .nav-btn {
+      flex: 1;
+      padding: 12px 16px;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+
+    .nav-btn.prev {
+      border: 1px solid var(--color-sage-border);
+      background: var(--color-white);
+      color: var(--color-text-secondary);
+    }
+
+    .nav-btn.prev:hover {
+      background: var(--color-sage-light);
+      border-color: var(--color-sage);
+      color: var(--color-sage);
+    }
+
+    .nav-btn.skip {
+      border: 1px solid var(--color-orange);
+      background: rgba(243, 156, 18, 0.05);
+      color: var(--color-orange);
+    }
+
+    .nav-btn.skip:hover {
+      background: rgba(243, 156, 18, 0.15);
+    }
+
+    .nav-btn.next {
+      border: none;
+      background: var(--color-sage);
+      color: white;
+    }
+
+    .nav-btn.next:hover {
+      background: #7a8359;
+    }
+
+    .nav-btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+</style>
+
+<style>
+    /* Action List (collapsed view) */
+    .action-list {
+      padding: 0 20px 20px;
+    }
+
+    .action-list-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--color-text-muted);
+      margin-bottom: 8px;
+    }
+
+    .action-list-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      margin-bottom: 4px;
+    }
+
+    .action-list-item:hover {
+      background: var(--color-sage-light);
+    }
+
+    .action-list-item.active {
+      background: var(--color-sage);
+      color: white;
+    }
+
+    .action-list-item.completed {
+      opacity: 0.6;
+    }
+
+    .action-list-item.skipped {
+      opacity: 0.5;
+      text-decoration: line-through;
+    }
+
+    .action-list-item .status-icon {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      border: 2px solid currentColor;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .action-list-item.completed .status-icon {
+      background: var(--color-green);
+      border-color: var(--color-green);
+      color: white;
+    }
+
+    .action-list-item.skipped .status-icon {
+      background: var(--color-orange);
+      border-color: var(--color-orange);
+      color: white;
+    }
+
+    .action-list-item .name {
+      flex: 1;
+      font-size: 13px;
+      font-weight: 500;
+    }
+
+    .action-list-item .type-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 2px;
+    }
+
+    .type-dot.gate { background: var(--color-red); }
+    .type-dot.experiment { background: var(--color-purple); }
+    .type-dot.routine { background: var(--color-teal); }
+    .type-dot.ops { background: var(--color-orange); }
+
+    /* Calendar Panel (Right) */
+    .calendar-panel {
+      background: var(--color-card);
+      border: 1px solid var(--color-sage-border-light);
+      border-radius: 16px;
+      overflow: hidden;
+    }
+
+    .calendar-toolbar {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--color-sage-border-light);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .legend {
+      display: flex;
+      gap: 20px;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: var(--color-text-secondary);
+    }
+
+    .legend-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 3px;
+    }
+
+    .legend-dot.gcal { background: var(--color-gcal-bg); border-left: 3px solid var(--color-gcal); }
+    .legend-dot.planned { background: var(--color-sage-light); border-left: 3px solid var(--color-sage); }
+    .legend-dot.current { background: rgba(155, 89, 182, 0.15); border-left: 3px solid var(--color-purple); }
+
+    .calendar-hint {
+      font-size: 12px;
+      color: var(--color-text-muted);
+      background: var(--color-sage-light);
+      padding: 6px 12px;
+      border-radius: 6px;
+    }
+
+    .calendar-container {
+      padding: 0 20px 20px;
+    }
+</style>
+
+<style>
+    /* react-big-calendar Kaizen Theme Overrides */
+    .rbc-calendar {
+      font-family: inherit;
+      background: var(--color-white);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    .rbc-toolbar {
+      padding: 12px 16px;
+      margin-bottom: 0;
+      border-bottom: 1px solid var(--color-sage-border-light);
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .rbc-toolbar button {
+      padding: 6px 14px;
+      border-radius: 6px;
+      border: 1px solid var(--color-sage-border);
+      background: var(--color-white);
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--color-text-secondary);
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .rbc-toolbar button:hover {
+      background: var(--color-sage-light);
+      border-color: var(--color-sage);
+      color: var(--color-sage);
+    }
+
+    .rbc-toolbar button.rbc-active {
+      background: var(--color-sage);
+      border-color: var(--color-sage);
+      color: white;
+    }
+
+    .rbc-toolbar-label {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--color-text-primary);
+    }
+
+    .rbc-header {
+      padding: 12px 8px;
+      font-weight: 600;
+      font-size: 13px;
+      color: var(--color-text-secondary);
+      border-bottom: 1px solid var(--color-sage-border-light);
+      background: var(--color-white);
+    }
+
+    .rbc-header + .rbc-header { border-left: 1px solid var(--color-sage-border-light); }
+    .rbc-time-view { border: none; border-radius: 0 0 12px 12px; }
+    .rbc-time-header { border-bottom: 1px solid var(--color-sage-border-light); }
+    .rbc-time-header-content { border-left: 1px solid var(--color-sage-border-light); }
+    .rbc-time-content { border-top: none; }
+    .rbc-time-content > * + * > * { border-left: 1px solid var(--color-sage-border-light); }
+    .rbc-timeslot-group { border-bottom: 1px solid var(--color-sage-border-light); min-height: 60px; }
+    .rbc-time-slot { border-top: none; }
+    .rbc-time-slot:nth-child(2) { border-top: 1px dashed var(--color-sage-border-light); }
+    .rbc-time-gutter { background: var(--color-white); }
+    .rbc-label { font-size: 11px; font-family: 'SF Mono', monospace; color: var(--color-text-muted); padding: 0 8px; }
+    .rbc-day-slot .rbc-time-slot { border-top: none; }
+    .rbc-today { background-color: rgba(139, 148, 103, 0.04); }
+    .rbc-current-time-indicator { background-color: #E74C3C; height: 2px; }
+    .rbc-current-time-indicator::before { content: ''; position: absolute; left: -5px; top: -4px; width: 10px; height: 10px; background: #E74C3C; border-radius: 50%; }
+    .rbc-event { border: none; border-radius: 6px; padding: 4px 8px; font-size: 12px; }
+    .rbc-event:focus { outline: 2px solid var(--color-sage); outline-offset: 1px; }
+    .rbc-event-label { font-size: 10px; font-weight: 500; margin-bottom: 2px; }
+    .rbc-event-content { font-weight: 500; }
+    .rbc-event.event-planned { background: rgba(139, 148, 103, 0.15); border-left: 3px solid var(--color-sage); color: var(--color-text-primary); }
+    .rbc-event.event-gcal { background: var(--color-gcal-bg); border-left: 3px solid var(--color-gcal); color: #1a73e8; }
+    .rbc-event.event-current { background: rgba(155, 89, 182, 0.15); border-left: 3px solid var(--color-purple); color: var(--color-text-primary); }
+    .rbc-allday-cell { display: none; }
+    .rbc-row-segment { padding: 2px 4px; }
+    .rbc-time-content::-webkit-scrollbar { width: 8px; }
+    .rbc-time-content::-webkit-scrollbar-track { background: var(--color-bg); }
+    .rbc-time-content::-webkit-scrollbar-thumb { background: var(--color-sage-border); border-radius: 4px; }
+    .rbc-time-content::-webkit-scrollbar-thumb:hover { background: var(--color-sage); }
+</style>
+
+<script type="module">
+import React, { useState, useCallback } from 'react';
+import { createRoot } from 'react-dom/client';
+import { Calendar, dateFnsLocalizer, Views } from 'react-big-calendar';
+import { format, parse, startOfWeek, getDay, addDays } from 'date-fns';
+
+const { createElement: h, Fragment } = React;
+
+// Setup localizer
+const localizer = dateFnsLocalizer({
+  format, parse,
+  startOfWeek: (date) => startOfWeek(date, { weekStartsOn: 1 }),
+  getDay,
+  locales: { 'en-US': undefined },
+});
+
+const today = new Date();
+const weekStartDate = startOfWeek(today, { weekStartsOn: 1 });
+
+// Sample actions data
+const actions = [
+  { id: 1, title: 'Ship MVP Landing Page', type: 'gate', theme: 'Career Growth', description: 'Complete the landing page with hero, features, and CTA sections. Deadline: Friday.', deadline: 'Jan 3', status: 'pending' },
+  { id: 2, title: 'Morning Meditation', type: 'routine', theme: 'Health & Wellness', description: 'Daily 15-min meditation practice. Target: 5x this week.', frequency: '5x/week', status: 'pending' },
+  { id: 3, title: 'Try Pomodoro Technique', type: 'experiment', theme: 'Productivity', description: 'Test 25/5 pomodoro cycles for deep work. Track focus quality.', duration: '2 weeks', status: 'pending' },
+  { id: 4, title: 'Grocery Shopping', type: 'ops', theme: 'Life Admin', description: 'Weekly grocery run. Meal prep for the week.', status: 'pending' },
+  { id: 5, title: 'Finish API Integration', type: 'gate', theme: 'Career Growth', description: 'Complete backend API integration for user auth flow.', deadline: 'Jan 2', status: 'pending' },
+  { id: 6, title: 'Evening Walk', type: 'routine', theme: 'Health & Wellness', description: '30-min walk after dinner. Target: 4x this week.', frequency: '4x/week', status: 'pending' },
+];
+
+// Existing calendar events (gcal)
+const gcalEvents = [
+  { id: 'g1', title: 'Team Standup', start: new Date(addDays(weekStartDate, 0).setHours(9, 0)), end: new Date(addDays(weekStartDate, 0).setHours(9, 30)), source: 'gcal' },
+  { id: 'g2', title: 'Dentist Appt', start: new Date(addDays(weekStartDate, 2).setHours(14, 0)), end: new Date(addDays(weekStartDate, 2).setHours(15, 0)), source: 'gcal' },
+  { id: 'g3', title: 'Team Lunch', start: new Date(addDays(weekStartDate, 4).setHours(12, 0)), end: new Date(addDays(weekStartDate, 4).setHours(13, 0)), source: 'gcal' },
+];
+
+function App() {
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [actionStates, setActionStates] = useState(actions.map(() => ({ status: 'pending', tasks: [] })));
+  const [allEvents, setAllEvents] = useState(gcalEvents);
+
+  const currentAction = actions[currentIndex];
+  const currentState = actionStates[currentIndex];
+  const completedCount = actionStates.filter(s => s.status === 'completed' || s.status === 'skipped').length;
+  const progress = Math.round((completedCount / actions.length) * 100);
+
+  const handleNext = () => {
+    const newStates = [...actionStates];
+    if (currentState.tasks.length > 0) {
+      newStates[currentIndex] = { ...currentState, status: 'completed' };
+    }
+    setActionStates(newStates);
+    if (currentIndex < actions.length - 1) setCurrentIndex(currentIndex + 1);
+  };
+
+  const handleSkip = () => {
+    const newStates = [...actionStates];
+    newStates[currentIndex] = { ...currentState, status: 'skipped' };
+    setActionStates(newStates);
+    if (currentIndex < actions.length - 1) setCurrentIndex(currentIndex + 1);
+  };
+
+  const handlePrev = () => {
+    if (currentIndex > 0) setCurrentIndex(currentIndex - 1);
+  };
+
+  const handleSelectAction = (index) => {
+    setCurrentIndex(index);
+  };
+
+  const handleSelectSlot = useCallback(({ start, end }) => {
+    const title = currentAction.title;
+    const newEvent = {
+      id: `new-${Date.now()}`,
+      title,
+      start,
+      end,
+      source: 'current',
+      actionId: currentAction.id,
+    };
+    setAllEvents(prev => [...prev, newEvent]);
+    const newStates = [...actionStates];
+    newStates[currentIndex] = {
+      ...currentState,
+      tasks: [...currentState.tasks, { id: newEvent.id, start, end, title }]
+    };
+    setActionStates(newStates);
+  }, [currentAction, currentIndex, actionStates, currentState]);
+
+  const handleRemoveTask = (taskId) => {
+    setAllEvents(prev => prev.filter(e => e.id !== taskId));
+    const newStates = [...actionStates];
+    newStates[currentIndex] = {
+      ...currentState,
+      tasks: currentState.tasks.filter(t => t.id !== taskId)
+    };
+    setActionStates(newStates);
+  };
+
+  const eventStyleGetter = (event) => {
+    if (event.source === 'gcal') return { className: 'event-gcal' };
+    if (event.source === 'current') return { className: 'event-current' };
+    return { className: 'event-planned' };
+  };
+
+  return h(Fragment, null,
+    h('header', null,
+      h('div', { className: 'header-left' },
+        h('div', { className: 'logo' }, 'Kaizen'),
+        h('div', { className: 'breadcrumb' },
+          h('a', { href: '#' }, 'Calendar'),
+          h('span', null, '/'),
+          h('span', null, 'Guided Planning')
+        )
+      ),
+      h('div', { className: 'header-right' },
+        h('button', { className: 'btn-secondary' }, 'Cancel'),
+        h('button', { className: 'btn-primary' },
+          h('svg', { width: 16, height: 16, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2 },
+            h('path', { d: 'M12 5v14M5 12h14' })
+          ),
+          'Push to Calendar'
+        )
+      )
+    ),
+    h('main', { className: 'main-container' },
+      h(ActionPanel, { actions, currentIndex, currentAction, currentState, actionStates, progress, onNext: handleNext, onSkip: handleSkip, onPrev: handlePrev, onSelectAction: handleSelectAction, onRemoveTask: handleRemoveTask }),
+      h(CalendarPanel, { allEvents, weekStartDate, eventStyleGetter, onSelectSlot: handleSelectSlot, currentAction })
+    )
+  );
+}
+</script>
+
+<script type="module">
+// Continue from previous script - ActionPanel component
+const { createElement: h } = React;
+
+function ActionPanel({ actions, currentIndex, currentAction, currentState, actionStates, progress, onNext, onSkip, onPrev, onSelectAction, onRemoveTask }) {
+  const typeColors = { gate: 'gate', experiment: 'experiment', routine: 'routine', ops: 'ops' };
+  const typeLabels = { gate: 'Gate', experiment: 'Experiment', routine: 'Routine', ops: 'Ops' };
+  const typeIcons = {
+    gate: h('svg', { width: 12, height: 12, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2 }, h('path', { d: 'M22 11.08V12a10 10 0 1 1-5.93-9.14' }), h('polyline', { points: '22 4 12 14.01 9 11.01' })),
+    experiment: h('svg', { width: 12, height: 12, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2 }, h('path', { d: 'M9 3h6v2H9zM12 8v8M8 12h8' })),
+    routine: h('svg', { width: 12, height: 12, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2 }, h('path', { d: 'M17 2.1l4 4-4 4M3 12.2v-2a4 4 0 0 1 4-4h12.8M7 21.9l-4-4 4-4M21 11.8v2a4 4 0 0 1-4 4H4.2' })),
+    ops: h('svg', { width: 12, height: 12, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2 }, h('rect', { x: 3, y: 3, width: 18, height: 18, rx: 2 }), h('path', { d: 'M9 9h6M9 15h6' })),
+  };
+
+  return h('div', { className: 'action-panel' },
+    h('div', { className: 'progress-header' },
+      h('div', { className: 'progress-title' }, 'Guided Planning'),
+      h('div', { className: 'progress-bar-container' },
+        h('div', { className: 'progress-bar' },
+          h('div', { className: 'progress-bar-fill', style: { width: `${progress}%` } })
+        ),
+        h('div', { className: 'progress-text' }, `${currentIndex + 1}/${actions.length}`)
+      )
+    ),
+    h('div', { className: 'action-card-container' },
+      h('div', { className: 'action-card' },
+        h('div', { className: 'action-card-header' },
+          h('div', { className: `action-type-badge ${typeColors[currentAction.type]}` }, typeIcons[currentAction.type], typeLabels[currentAction.type]),
+          h('div', { className: 'theme-badge' }, currentAction.theme)
+        ),
+        h('div', { className: 'action-title' }, currentAction.title),
+        h('div', { className: 'action-description' }, currentAction.description),
+        h('div', { className: 'action-meta' },
+          currentAction.deadline && h('div', { className: 'meta-item' },
+            h('svg', { width: 14, height: 14, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2 }, h('rect', { x: 3, y: 4, width: 18, height: 18, rx: 2 }), h('line', { x1: 16, y1: 2, x2: 16, y2: 6 }), h('line', { x1: 8, y1: 2, x2: 8, y2: 6 }), h('line', { x1: 3, y1: 10, x2: 21, y2: 10 })),
+            `Due: ${currentAction.deadline}`
+          ),
+          currentAction.frequency && h('div', { className: 'meta-item' },
+            h('svg', { width: 14, height: 14, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2 }, h('circle', { cx: 12, cy: 12, r: 10 }), h('polyline', { points: '12 6 12 12 16 14' })),
+            currentAction.frequency
+          )
+        ),
+        h('div', { className: 'planned-tasks' },
+          h('div', { className: 'planned-tasks-title' }, `Planned this week (${currentState.tasks.length})`),
+          currentState.tasks.length === 0
+            ? h('div', { className: 'empty-planned' }, 'Click on calendar to add time blocks')
+            : currentState.tasks.map(task =>
+                h('div', { key: task.id, className: 'planned-task-item' },
+                  h('span', { className: 'time' }, formatTime(task.start)),
+                  h('span', { className: 'title' }, formatDay(task.start)),
+                  h('button', { className: 'remove-btn', onClick: () => onRemoveTask(task.id) }, '×')
+                )
+              )
+        )
+      ),
+      h('div', { className: 'action-list' },
+        h('div', { className: 'action-list-title' }, 'All Actions'),
+        actions.map((action, idx) =>
+          h('div', {
+            key: action.id,
+            className: `action-list-item ${idx === currentIndex ? 'active' : ''} ${actionStates[idx].status}`,
+            onClick: () => onSelectAction(idx)
+          },
+            h('div', { className: 'status-icon' },
+              actionStates[idx].status === 'completed' ? '✓' :
+              actionStates[idx].status === 'skipped' ? '–' : ''
+            ),
+            h('span', { className: 'name' }, action.title),
+            h('div', { className: `type-dot ${action.type}` })
+          )
+        )
+      )
+    ),
+    h('div', { className: 'action-nav' },
+      h('button', { className: 'nav-btn prev', onClick: onPrev, disabled: currentIndex === 0 },
+        h('svg', { width: 14, height: 14, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2 }, h('polyline', { points: '15 18 9 12 15 6' })),
+        'Prev'
+      ),
+      h('button', { className: 'nav-btn skip', onClick: onSkip }, 'Skip'),
+      h('button', { className: 'nav-btn next', onClick: onNext },
+        currentIndex === actions.length - 1 ? 'Finish' : 'Next',
+        h('svg', { width: 14, height: 14, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2 }, h('polyline', { points: '9 18 15 12 9 6' }))
+      )
+    )
+  );
+}
+
+function formatTime(date) {
+  return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+}
+
+function formatDay(date) {
+  return date.toLocaleDateString('en-US', { weekday: 'short' });
+}
+
+window.ActionPanel = ActionPanel;
+window.formatTime = formatTime;
+window.formatDay = formatDay;
+</script>
+
+<script type="module">
+// CalendarPanel component and render
+import React, { useState, useCallback } from 'react';
+import { createRoot } from 'react-dom/client';
+import { Calendar, dateFnsLocalizer, Views } from 'react-big-calendar';
+import { format, parse, startOfWeek, getDay, addDays } from 'date-fns';
+
+const { createElement: h, Fragment } = React;
+
+const localizer = dateFnsLocalizer({
+  format, parse,
+  startOfWeek: (date) => startOfWeek(date, { weekStartsOn: 1 }),
+  getDay,
+  locales: { 'en-US': undefined },
+});
+
+const today = new Date();
+const weekStartDate = startOfWeek(today, { weekStartsOn: 1 });
+
+const actions = [
+  { id: 1, title: 'Ship MVP Landing Page', type: 'gate', theme: 'Career Growth', description: 'Complete the landing page with hero, features, and CTA sections. Deadline: Friday.', deadline: 'Jan 3', status: 'pending' },
+  { id: 2, title: 'Morning Meditation', type: 'routine', theme: 'Health & Wellness', description: 'Daily 15-min meditation practice. Target: 5x this week.', frequency: '5x/week', status: 'pending' },
+  { id: 3, title: 'Try Pomodoro Technique', type: 'experiment', theme: 'Productivity', description: 'Test 25/5 pomodoro cycles for deep work. Track focus quality.', duration: '2 weeks', status: 'pending' },
+  { id: 4, title: 'Grocery Shopping', type: 'ops', theme: 'Life Admin', description: 'Weekly grocery run. Meal prep for the week.', status: 'pending' },
+  { id: 5, title: 'Finish API Integration', type: 'gate', theme: 'Career Growth', description: 'Complete backend API integration for user auth flow.', deadline: 'Jan 2', status: 'pending' },
+  { id: 6, title: 'Evening Walk', type: 'routine', theme: 'Health & Wellness', description: '30-min walk after dinner. Target: 4x this week.', frequency: '4x/week', status: 'pending' },
+];
+
+const gcalEvents = [
+  { id: 'g1', title: 'Team Standup', start: new Date(addDays(weekStartDate, 0).setHours(9, 0)), end: new Date(addDays(weekStartDate, 0).setHours(9, 30)), source: 'gcal' },
+  { id: 'g2', title: 'Dentist Appt', start: new Date(addDays(weekStartDate, 2).setHours(14, 0)), end: new Date(addDays(weekStartDate, 2).setHours(15, 0)), source: 'gcal' },
+  { id: 'g3', title: 'Team Lunch', start: new Date(addDays(weekStartDate, 4).setHours(12, 0)), end: new Date(addDays(weekStartDate, 4).setHours(13, 0)), source: 'gcal' },
+];
+
+function CalendarPanel({ allEvents, weekStartDate, eventStyleGetter, onSelectSlot, currentAction }) {
+  return h('div', { className: 'calendar-panel' },
+    h('div', { className: 'calendar-toolbar' },
+      h('div', { className: 'legend' },
+        h('div', { className: 'legend-item' }, h('div', { className: 'legend-dot gcal' }), h('span', null, 'Google Calendar')),
+        h('div', { className: 'legend-item' }, h('div', { className: 'legend-dot current' }), h('span', null, 'Current Action')),
+        h('div', { className: 'legend-item' }, h('div', { className: 'legend-dot planned' }), h('span', null, 'Other Planned'))
+      ),
+      h('div', { className: 'calendar-hint' }, `Click to add: ${currentAction.title}`)
+    ),
+    h('div', { className: 'calendar-container' },
+      h('div', { id: 'calendar-inner' },
+        h(Calendar, {
+          localizer,
+          events: allEvents,
+          defaultView: Views.WEEK,
+          views: ['week', 'day'],
+          defaultDate: weekStartDate,
+          eventPropGetter: eventStyleGetter,
+          onSelectSlot,
+          selectable: true,
+          min: new Date(0, 0, 0, 7, 0),
+          max: new Date(0, 0, 0, 20, 0),
+          step: 30,
+          timeslots: 2,
+          style: { height: 600 },
+          showMultiDayTimes: true,
+        })
+      )
+    )
+  );
+}
+
+function formatTime(date) {
+  return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+}
+
+function formatDay(date) {
+  return date.toLocaleDateString('en-US', { weekday: 'short' });
+}
+</script>
+
+<script type="module">
+// Main App - single consolidated module
+import React, { useState, useCallback } from 'react';
+import { createRoot } from 'react-dom/client';
+import { Calendar, dateFnsLocalizer, Views } from 'react-big-calendar';
+import { format, parse, startOfWeek, getDay, addDays } from 'date-fns';
+
+const { createElement: h, Fragment } = React;
+
+const localizer = dateFnsLocalizer({
+  format, parse,
+  startOfWeek: (date) => startOfWeek(date, { weekStartsOn: 1 }),
+  getDay,
+  locales: { 'en-US': undefined },
+});
+
+const today = new Date();
+const weekStartDate = startOfWeek(today, { weekStartsOn: 1 });
+
+const actions = [
+  { id: 1, title: 'Ship MVP Landing Page', type: 'gate', theme: 'Career Growth', description: 'Complete the landing page with hero, features, and CTA sections. Deadline: Friday.', deadline: 'Jan 3' },
+  { id: 2, title: 'Morning Meditation', type: 'routine', theme: 'Health & Wellness', description: 'Daily 15-min meditation practice. Target: 5x this week.', frequency: '5x/week' },
+  { id: 3, title: 'Try Pomodoro Technique', type: 'experiment', theme: 'Productivity', description: 'Test 25/5 pomodoro cycles for deep work. Track focus quality.', duration: '2 weeks' },
+  { id: 4, title: 'Grocery Shopping', type: 'ops', theme: 'Life Admin', description: 'Weekly grocery run. Meal prep for the week.' },
+  { id: 5, title: 'Finish API Integration', type: 'gate', theme: 'Career Growth', description: 'Complete backend API integration for user auth flow.', deadline: 'Jan 2' },
+  { id: 6, title: 'Evening Walk', type: 'routine', theme: 'Health & Wellness', description: '30-min walk after dinner. Target: 4x this week.', frequency: '4x/week' },
+];
+
+const gcalEvents = [
+  { id: 'g1', title: 'Team Standup', start: new Date(addDays(weekStartDate, 0).setHours(9, 0)), end: new Date(addDays(weekStartDate, 0).setHours(9, 30)), source: 'gcal' },
+  { id: 'g2', title: 'Dentist Appt', start: new Date(addDays(weekStartDate, 2).setHours(14, 0)), end: new Date(addDays(weekStartDate, 2).setHours(15, 0)), source: 'gcal' },
+  { id: 'g3', title: 'Team Lunch', start: new Date(addDays(weekStartDate, 4).setHours(12, 0)), end: new Date(addDays(weekStartDate, 4).setHours(13, 0)), source: 'gcal' },
+];
+
+const typeLabels = { gate: 'Gate', experiment: 'Experiment', routine: 'Routine', ops: 'Ops' };
+
+function formatTime(date) { return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }); }
+function formatDay(date) { return date.toLocaleDateString('en-US', { weekday: 'short' }); }
+
+function App() {
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [actionStates, setActionStates] = useState(actions.map(() => ({ status: 'pending', tasks: [] })));
+  const [allEvents, setAllEvents] = useState(gcalEvents);
+
+  const currentAction = actions[currentIndex];
+  const currentState = actionStates[currentIndex];
+  const completedCount = actionStates.filter(s => s.status === 'completed' || s.status === 'skipped').length;
+  const progress = Math.round((completedCount / actions.length) * 100);
+
+  const handleNext = () => {
+    const newStates = [...actionStates];
+    if (currentState.tasks.length > 0) newStates[currentIndex] = { ...currentState, status: 'completed' };
+    setActionStates(newStates);
+    if (currentIndex < actions.length - 1) setCurrentIndex(currentIndex + 1);
+  };
+
+  const handleSkip = () => {
+    const newStates = [...actionStates];
+    newStates[currentIndex] = { ...currentState, status: 'skipped' };
+    setActionStates(newStates);
+    if (currentIndex < actions.length - 1) setCurrentIndex(currentIndex + 1);
+  };
+
+  const handlePrev = () => { if (currentIndex > 0) setCurrentIndex(currentIndex - 1); };
+  const handleSelectAction = (index) => { setCurrentIndex(index); };
+
+  const handleSelectSlot = useCallback(({ start, end }) => {
+    const newEvent = { id: `new-${Date.now()}`, title: currentAction.title, start, end, source: 'current', actionId: currentAction.id };
+    setAllEvents(prev => [...prev, newEvent]);
+    const newStates = [...actionStates];
+    newStates[currentIndex] = { ...currentState, tasks: [...currentState.tasks, { id: newEvent.id, start, end, title: currentAction.title }] };
+    setActionStates(newStates);
+  }, [currentAction, currentIndex, actionStates, currentState]);
+
+  const handleRemoveTask = (taskId) => {
+    setAllEvents(prev => prev.filter(e => e.id !== taskId));
+    const newStates = [...actionStates];
+    newStates[currentIndex] = { ...currentState, tasks: currentState.tasks.filter(t => t.id !== taskId) };
+    setActionStates(newStates);
+  };
+
+  const eventStyleGetter = (event) => {
+    if (event.source === 'gcal') return { className: 'event-gcal' };
+    if (event.source === 'current') return { className: 'event-current' };
+    return { className: 'event-planned' };
+  };
+
+  return h(Fragment, null,
+    h('header', null,
+      h('div', { className: 'header-left' },
+        h('div', { className: 'logo' }, 'Kaizen'),
+        h('div', { className: 'breadcrumb' }, h('a', { href: '#' }, 'Calendar'), h('span', null, '/'), h('span', null, 'Guided Planning'))
+      ),
+      h('div', { className: 'header-right' },
+        h('button', { className: 'btn-secondary' }, 'Cancel'),
+        h('button', { className: 'btn-primary' }, h('svg', { width: 16, height: 16, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2 }, h('path', { d: 'M12 5v14M5 12h14' })), 'Push to Calendar')
+      )
+    ),
+    h('main', { className: 'main-container' },
+      // Action Panel
+      h('div', { className: 'action-panel' },
+        h('div', { className: 'progress-header' },
+          h('div', { className: 'progress-title' }, 'Guided Planning'),
+          h('div', { className: 'progress-bar-container' },
+            h('div', { className: 'progress-bar' }, h('div', { className: 'progress-bar-fill', style: { width: `${progress}%` } })),
+            h('div', { className: 'progress-text' }, `${currentIndex + 1}/${actions.length}`)
+          )
+        ),
+        h('div', { className: 'action-card-container' },
+          h('div', { className: 'action-card' },
+            h('div', { className: 'action-card-header' },
+              h('div', { className: `action-type-badge ${currentAction.type}` }, typeLabels[currentAction.type]),
+              h('div', { className: 'theme-badge' }, currentAction.theme)
+            ),
+            h('div', { className: 'action-title' }, currentAction.title),
+            h('div', { className: 'action-description' }, currentAction.description),
+            h('div', { className: 'action-meta' },
+              currentAction.deadline && h('div', { className: 'meta-item' }, `📅 Due: ${currentAction.deadline}`),
+              currentAction.frequency && h('div', { className: 'meta-item' }, `🔄 ${currentAction.frequency}`)
+            ),
+            h('div', { className: 'planned-tasks' },
+              h('div', { className: 'planned-tasks-title' }, `Planned this week (${currentState.tasks.length})`),
+              currentState.tasks.length === 0
+                ? h('div', { className: 'empty-planned' }, 'Click on calendar to add time blocks')
+                : currentState.tasks.map(task => h('div', { key: task.id, className: 'planned-task-item' },
+                    h('span', { className: 'time' }, formatTime(task.start)),
+                    h('span', { className: 'title' }, formatDay(task.start)),
+                    h('button', { className: 'remove-btn', onClick: () => handleRemoveTask(task.id) }, '×')
+                  ))
+            )
+          ),
+          h('div', { className: 'action-list' },
+            h('div', { className: 'action-list-title' }, 'All Actions'),
+            actions.map((action, idx) => h('div', {
+              key: action.id,
+              className: `action-list-item ${idx === currentIndex ? 'active' : ''} ${actionStates[idx].status}`,
+              onClick: () => handleSelectAction(idx)
+            },
+              h('div', { className: 'status-icon' }, actionStates[idx].status === 'completed' ? '✓' : actionStates[idx].status === 'skipped' ? '–' : ''),
+              h('span', { className: 'name' }, action.title),
+              h('div', { className: `type-dot ${action.type}` })
+            ))
+          )
+        ),
+        h('div', { className: 'action-nav' },
+          h('button', { className: 'nav-btn prev', onClick: handlePrev, disabled: currentIndex === 0 }, '← Prev'),
+          h('button', { className: 'nav-btn skip', onClick: handleSkip }, 'Skip'),
+          h('button', { className: 'nav-btn next', onClick: handleNext }, currentIndex === actions.length - 1 ? 'Finish' : 'Next →')
+        )
+      ),
+      // Calendar Panel
+      h('div', { className: 'calendar-panel' },
+        h('div', { className: 'calendar-toolbar' },
+          h('div', { className: 'legend' },
+            h('div', { className: 'legend-item' }, h('div', { className: 'legend-dot gcal' }), 'Google Calendar'),
+            h('div', { className: 'legend-item' }, h('div', { className: 'legend-dot current' }), 'Current Action'),
+            h('div', { className: 'legend-item' }, h('div', { className: 'legend-dot planned' }), 'Other Planned')
+          ),
+          h('div', { className: 'calendar-hint' }, `Click to add: ${currentAction.title}`)
+        ),
+        h('div', { className: 'calendar-container' },
+          h(Calendar, {
+            localizer,
+            events: allEvents,
+            defaultView: Views.WEEK,
+            views: ['week', 'day'],
+            defaultDate: weekStartDate,
+            eventPropGetter: eventStyleGetter,
+            onSelectSlot: handleSelectSlot,
+            selectable: true,
+            min: new Date(0, 0, 0, 7, 0),
+            max: new Date(0, 0, 0, 20, 0),
+            step: 30,
+            timeslots: 2,
+            style: { height: 600 },
+          })
+        )
+      )
+    )
+  );
+}
+
+createRoot(document.getElementById('app-root')).render(h(App));
+</script>

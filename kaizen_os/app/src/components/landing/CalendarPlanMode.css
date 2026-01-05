@@ -1,0 +1,57 @@
+/* Plan Mode Event Styling - Simple like Google Calendar */
+.plan-event-wrapper {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+  padding: 0 4px;
+  overflow: hidden;
+}
+
+.plan-event-wrapper .event-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  line-height: 1.2;
+}
+
+/* Assignment badges - small indicator */
+.plan-event-wrapper .assignment-badge {
+  flex-shrink: 0;
+  font-size: 9px;
+  margin-left: 2px;
+}
+
+.plan-event-wrapper .assignment-badge.current {
+  color: #5a6343;
+}
+
+.plan-event-wrapper .assignment-badge.other {
+  color: #2471a3;
+}
+
+/* Hide the + hint, keep it simple */
+.plan-event-wrapper .assignment-hint {
+  display: none;
+}
+
+/* Hide time label from events in plan mode */
+.plan-mode-calendar .rbc-event-label {
+  display: none !important;
+}
+
+/* Time marker lines at key hours (8 AM, 12 PM, 5 PM) */
+/* Calendar starts at 5 AM, each timeslot-group = 1 hour */
+/* 8 AM = group 3, 12 PM = group 7, 5 PM = group 12 */
+.plan-mode-calendar .rbc-time-gutter .rbc-timeslot-group:nth-child(4),
+.plan-mode-calendar .rbc-time-gutter .rbc-timeslot-group:nth-child(8),
+.plan-mode-calendar .rbc-time-gutter .rbc-timeslot-group:nth-child(13) {
+  font-weight: 700;
+}
+
+.plan-mode-calendar .rbc-day-slot .rbc-timeslot-group:nth-child(4),
+.plan-mode-calendar .rbc-day-slot .rbc-timeslot-group:nth-child(8),
+.plan-mode-calendar .rbc-day-slot .rbc-timeslot-group:nth-child(13) {
+  border-top: 2px dotted rgba(0, 0, 0, 0.3) !important;
+}

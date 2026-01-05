@@ -1,0 +1,794 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kaizen OS - Plan Your Week</title>
+  <style>
+    :root {
+      --color-sage: #8B9467;
+      --color-sage-light: rgba(139, 148, 103, 0.1);
+      --color-sage-border: rgba(139, 148, 103, 0.2);
+      --color-sage-border-light: rgba(139, 148, 103, 0.08);
+      --color-bg: #F5F1EB;
+      --color-card: rgba(254, 254, 254, 0.95);
+      --color-white: #FFFFFF;
+      --color-text-primary: #1A1A1A;
+      --color-text-secondary: #666666;
+      --color-text-muted: #999999;
+      --color-red: #E74C3C;
+      --color-green: #27AE60;
+      --color-orange: #F39C12;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-size: 14px;
+      line-height: 1.5;
+      color: var(--color-text-primary);
+      background-color: var(--color-bg);
+      min-height: 100vh;
+    }
+
+    /* Header */
+    header {
+      padding: 12px 24px;
+      border-bottom: 1px solid var(--color-sage-border-light);
+      background: var(--color-card);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .header-left { display: flex; align-items: center; gap: 20px; }
+    .logo { font-size: 20px; font-weight: 600; color: var(--color-sage); }
+
+    .breadcrumb {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: var(--color-text-muted);
+    }
+    .breadcrumb a { color: var(--color-text-secondary); text-decoration: none; }
+    .breadcrumb a:hover { color: var(--color-sage); }
+    .breadcrumb span { color: var(--color-text-primary); font-weight: 500; }
+
+    .header-center {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .week-selector {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--color-white);
+      border: 1px solid var(--color-sage-border);
+      border-radius: 10px;
+      padding: 8px 16px;
+    }
+
+    .week-nav-btn {
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
+      border: none;
+      background: transparent;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--color-text-secondary);
+      transition: all 0.2s ease;
+    }
+
+    .week-nav-btn:hover {
+      background: var(--color-sage-light);
+      color: var(--color-sage);
+    }
+
+    .week-label {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--color-text-primary);
+      min-width: 160px;
+      text-align: center;
+    }
+
+    .header-right { display: flex; align-items: center; gap: 12px; }
+
+    .btn-secondary {
+      padding: 10px 20px;
+      border-radius: 10px;
+      border: 1px solid var(--color-sage-border);
+      background: var(--color-white);
+      color: var(--color-text-secondary);
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .btn-secondary:hover {
+      background: var(--color-sage-light);
+      border-color: var(--color-sage);
+      color: var(--color-sage);
+    }
+
+    .btn-primary {
+      padding: 10px 20px;
+      border-radius: 10px;
+      border: none;
+      background: linear-gradient(135deg, var(--color-sage), #7a8359);
+      color: white;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(139, 148, 103, 0.3);
+    }
+
+    .btn-primary:disabled {
+      background: var(--color-text-muted);
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+
+    /* Main Container */
+    .main-container {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+      padding: 24px;
+      max-width: 1400px;
+      margin: 0 auto;
+      min-height: calc(100vh - 60px);
+    }
+
+    /* Panel Styles */
+    .panel {
+      background: var(--color-card);
+      border: 1px solid var(--color-sage-border-light);
+      border-radius: 16px;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .panel-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--color-sage-border-light);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .panel-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--color-text-primary);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .panel-title svg {
+      color: var(--color-sage);
+    }
+
+    .panel-body {
+      flex: 1;
+      padding: 20px;
+      overflow-y: auto;
+    }
+
+    /* Input Panel */
+    .format-guide {
+      background: var(--color-sage-light);
+      border: 1px solid var(--color-sage-border);
+      border-radius: 10px;
+      padding: 14px 16px;
+      margin-bottom: 16px;
+    }
+
+    .format-guide-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--color-sage);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 8px;
+    }
+
+    .format-guide code {
+      display: block;
+      font-family: 'SF Mono', 'Monaco', 'Menlo', monospace;
+      font-size: 12px;
+      color: var(--color-text-secondary);
+      line-height: 1.7;
+    }
+
+    .plan-textarea {
+      width: 100%;
+      height: calc(100% - 140px);
+      min-height: 400px;
+      border: 1px solid var(--color-sage-border);
+      border-radius: 12px;
+      padding: 16px;
+      font-family: 'SF Mono', 'Monaco', 'Menlo', monospace;
+      font-size: 14px;
+      line-height: 1.8;
+      resize: none;
+      color: var(--color-text-primary);
+      background: var(--color-white);
+      transition: all 0.2s ease;
+    }
+
+    .plan-textarea:focus {
+      outline: none;
+      border-color: var(--color-sage);
+      box-shadow: 0 0 0 3px rgba(139, 148, 103, 0.1);
+    }
+
+    .plan-textarea::placeholder {
+      color: var(--color-text-muted);
+    }
+
+    /* Preview Panel */
+    .preview-summary {
+      display: flex;
+      gap: 20px;
+      margin-bottom: 20px;
+    }
+
+    .summary-stat {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+    }
+
+    .summary-stat .count {
+      font-weight: 600;
+      color: var(--color-text-primary);
+    }
+
+    .summary-stat .label {
+      color: var(--color-text-muted);
+    }
+
+    .summary-stat.success .count { color: var(--color-green); }
+    .summary-stat.warning .count { color: var(--color-orange); }
+    .summary-stat.error .count { color: var(--color-red); }
+
+    /* Day Groups */
+    .day-group {
+      margin-bottom: 24px;
+    }
+
+    .day-header {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--color-sage);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      padding-bottom: 8px;
+      margin-bottom: 12px;
+      border-bottom: 1px solid var(--color-sage-border-light);
+    }
+
+    /* Block Items */
+    .block-item {
+      display: flex;
+      gap: 12px;
+      padding: 12px;
+      background: var(--color-white);
+      border: 1px solid var(--color-sage-border-light);
+      border-radius: 10px;
+      margin-bottom: 8px;
+      transition: all 0.2s ease;
+    }
+
+    .block-item:hover {
+      border-color: var(--color-sage-border);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+    }
+
+    .block-item.unmatched {
+      border-left: 3px solid var(--color-orange);
+    }
+
+    .block-time {
+      font-family: 'SF Mono', 'Monaco', 'Menlo', monospace;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--color-text-secondary);
+      min-width: 100px;
+    }
+
+    .block-content {
+      flex: 1;
+    }
+
+    .block-title {
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--color-text-primary);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .block-title .card-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      background: var(--color-sage-light);
+      color: var(--color-sage);
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: 500;
+    }
+
+    .block-title .card-tag.unmatched {
+      background: rgba(243, 156, 18, 0.1);
+      color: var(--color-orange);
+    }
+
+    .block-description {
+      font-size: 13px;
+      color: var(--color-text-muted);
+      margin-top: 4px;
+    }
+
+    /* Errors Section */
+    .errors-section {
+      margin-top: 20px;
+      padding-top: 16px;
+      border-top: 1px solid var(--color-sage-border-light);
+    }
+
+    .error-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--color-red);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .error-item {
+      background: rgba(231, 76, 60, 0.05);
+      border: 1px solid rgba(231, 76, 60, 0.2);
+      border-radius: 8px;
+      padding: 10px 12px;
+      font-size: 13px;
+      color: var(--color-red);
+      margin-bottom: 6px;
+      font-family: 'SF Mono', 'Monaco', 'Menlo', monospace;
+    }
+
+    /* Unmatched Warning */
+    .warning-section {
+      margin-top: 16px;
+      background: rgba(243, 156, 18, 0.08);
+      border: 1px solid rgba(243, 156, 18, 0.2);
+      border-radius: 10px;
+      padding: 12px 16px;
+    }
+
+    .warning-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--color-orange);
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .warning-text {
+      font-size: 13px;
+      color: var(--color-text-secondary);
+    }
+
+    .warning-text strong {
+      color: var(--color-orange);
+    }
+
+    /* Empty State */
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      text-align: center;
+      color: var(--color-text-muted);
+    }
+
+    .empty-state svg {
+      margin-bottom: 16px;
+      opacity: 0.5;
+    }
+
+    .empty-state p {
+      font-size: 14px;
+    }
+
+    /* Card Suggestions */
+    .card-suggestions {
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px dashed var(--color-sage-border);
+    }
+
+    .suggestion-title {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--color-text-muted);
+      margin-bottom: 8px;
+    }
+
+    .suggestion-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .suggestion-chip {
+      background: var(--color-sage-light);
+      border: 1px solid var(--color-sage-border);
+      border-radius: 16px;
+      padding: 4px 12px;
+      font-size: 12px;
+      color: var(--color-sage);
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .suggestion-chip:hover {
+      background: var(--color-sage);
+      color: white;
+    }
+
+    /* Success Toast */
+    .success-toast {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--color-green);
+      color: white;
+      padding: 12px 24px;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      box-shadow: 0 4px 20px rgba(39, 174, 96, 0.3);
+      animation: slideUp 0.3s ease;
+    }
+
+    @keyframes slideUp {
+      from { transform: translateX(-50%) translateY(20px); opacity: 0; }
+      to { transform: translateX(-50%) translateY(0); opacity: 1; }
+    }
+
+    /* Responsive */
+    @media (max-width: 1024px) {
+      .main-container {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="header-left">
+      <div class="logo">Kaizen</div>
+      <div class="breadcrumb">
+        <a href="#">Calendar</a>
+        <span>/</span>
+        <span>Plan Week</span>
+      </div>
+    </div>
+
+    <div class="header-center">
+      <div class="week-selector">
+        <button class="week-nav-btn">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="15 18 9 12 15 6"></polyline>
+          </svg>
+        </button>
+        <span class="week-label">Dec 30 - Jan 5</span>
+        <button class="week-nav-btn">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="9 18 15 12 9 6"></polyline>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="header-right">
+      <button class="btn-secondary">Cancel</button>
+      <button class="btn-primary" id="commitBtn">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 5v14M5 12h14"></path>
+        </svg>
+        Push to Calendar
+      </button>
+    </div>
+  </header>
+
+  <main class="main-container">
+    <!-- Input Panel -->
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+          </svg>
+          Plan Input
+        </div>
+      </div>
+      <div class="panel-body">
+        <div class="format-guide">
+          <div class="format-guide-title">Format</div>
+          <code>
+            - 9:00-10:00 [Card Name] Optional description<br>
+            - 14:00-15:30 [Deep Work] Focus session
+          </code>
+        </div>
+
+        <textarea class="plan-textarea" placeholder="Monday:
+- 9:00-10:00 [Standup] Team sync
+- 10:30-12:00 [Deep Work] API integration
+
+Tuesday:
+- 9:00-9:30 [1:1 with Sarah]
+- 14:00-16:00 [Deep Work] Frontend work">Monday:
+- 9:00-10:00 [Standup] Team sync
+- 10:30-12:00 [Deep Work] API integration
+- 14:00-15:00 [Design Review] New dashboard
+
+Tuesday:
+- 9:00-9:30 [1:1 with Sarah]
+- 10:00-11:00 [Client Call] Discuss requirements
+- 14:00-16:00 [Deep Work] Frontend work
+
+Wednesday:
+- 9:00-10:00 [Standup]
+- 11:00-12:00 [Lunch & Learn] Tech talk
+- 15:00-16:30 [Sprint Planning]</textarea>
+
+        <div class="card-suggestions">
+          <div class="suggestion-title">Your cards:</div>
+          <div class="suggestion-chips">
+            <span class="suggestion-chip">Deep Work</span>
+            <span class="suggestion-chip">Standup</span>
+            <span class="suggestion-chip">Design Review</span>
+            <span class="suggestion-chip">1:1 with Sarah</span>
+            <span class="suggestion-chip">Sprint Planning</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Preview Panel -->
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+            <line x1="16" y1="2" x2="16" y2="6"></line>
+            <line x1="8" y1="2" x2="8" y2="6"></line>
+            <line x1="3" y1="10" x2="21" y2="10"></line>
+          </svg>
+          Preview
+        </div>
+      </div>
+      <div class="panel-body">
+        <div class="preview-summary">
+          <div class="summary-stat success">
+            <span class="count">8</span>
+            <span class="label">blocks parsed</span>
+          </div>
+          <div class="summary-stat warning">
+            <span class="count">2</span>
+            <span class="label">unmatched cards</span>
+          </div>
+          <div class="summary-stat error">
+            <span class="count">0</span>
+            <span class="label">errors</span>
+          </div>
+        </div>
+
+        <!-- Monday -->
+        <div class="day-group">
+          <div class="day-header">Monday, Dec 30</div>
+
+          <div class="block-item">
+            <div class="block-time">9:00 - 10:00</div>
+            <div class="block-content">
+              <div class="block-title">
+                <span class="card-tag">Standup</span>
+              </div>
+              <div class="block-description">Team sync</div>
+            </div>
+          </div>
+
+          <div class="block-item">
+            <div class="block-time">10:30 - 12:00</div>
+            <div class="block-content">
+              <div class="block-title">
+                <span class="card-tag">Deep Work</span>
+              </div>
+              <div class="block-description">API integration</div>
+            </div>
+          </div>
+
+          <div class="block-item">
+            <div class="block-time">14:00 - 15:00</div>
+            <div class="block-content">
+              <div class="block-title">
+                <span class="card-tag">Design Review</span>
+              </div>
+              <div class="block-description">New dashboard</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tuesday -->
+        <div class="day-group">
+          <div class="day-header">Tuesday, Dec 31</div>
+
+          <div class="block-item">
+            <div class="block-time">9:00 - 9:30</div>
+            <div class="block-content">
+              <div class="block-title">
+                <span class="card-tag">1:1 with Sarah</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="block-item unmatched">
+            <div class="block-time">10:00 - 11:00</div>
+            <div class="block-content">
+              <div class="block-title">
+                <span class="card-tag unmatched">Client Call</span>
+              </div>
+              <div class="block-description">Discuss requirements</div>
+            </div>
+          </div>
+
+          <div class="block-item">
+            <div class="block-time">14:00 - 16:00</div>
+            <div class="block-content">
+              <div class="block-title">
+                <span class="card-tag">Deep Work</span>
+              </div>
+              <div class="block-description">Frontend work</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Wednesday -->
+        <div class="day-group">
+          <div class="day-header">Wednesday, Jan 1</div>
+
+          <div class="block-item">
+            <div class="block-time">9:00 - 10:00</div>
+            <div class="block-content">
+              <div class="block-title">
+                <span class="card-tag">Standup</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="block-item unmatched">
+            <div class="block-time">11:00 - 12:00</div>
+            <div class="block-content">
+              <div class="block-title">
+                <span class="card-tag unmatched">Lunch & Learn</span>
+              </div>
+              <div class="block-description">Tech talk</div>
+            </div>
+          </div>
+
+          <div class="block-item">
+            <div class="block-time">15:00 - 16:30</div>
+            <div class="block-content">
+              <div class="block-title">
+                <span class="card-tag">Sprint Planning</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Warning Section -->
+        <div class="warning-section">
+          <div class="warning-title">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="12" y1="8" x2="12" y2="12"></line>
+              <line x1="12" y1="16" x2="12.01" y2="16"></line>
+            </svg>
+            Unmatched Cards
+          </div>
+          <div class="warning-text">
+            <strong>Client Call</strong> and <strong>Lunch & Learn</strong> don't match existing cards.
+            Events will be created without card links.
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Success Toast (hidden by default, shown after commit) -->
+  <!-- <div class="success-toast">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <polyline points="20 6 9 17 4 12"></polyline>
+    </svg>
+    8 events created in Google Calendar
+  </div> -->
+
+  <script>
+    // Simple demo interaction
+    const textarea = document.querySelector('.plan-textarea');
+    const commitBtn = document.getElementById('commitBtn');
+
+    // Show toast on commit (demo)
+    commitBtn.addEventListener('click', () => {
+      const toast = document.createElement('div');
+      toast.className = 'success-toast';
+      toast.innerHTML = `
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="20 6 9 17 4 12"></polyline>
+        </svg>
+        8 events created in Google Calendar
+      `;
+      document.body.appendChild(toast);
+
+      setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateX(-50%) translateY(20px)';
+        toast.style.transition = 'all 0.3s ease';
+        setTimeout(() => toast.remove(), 300);
+      }, 3000);
+    });
+
+    // Click to insert card name
+    document.querySelectorAll('.suggestion-chip').forEach(chip => {
+      chip.addEventListener('click', () => {
+        const cardName = chip.textContent;
+        const cursorPos = textarea.selectionStart;
+        const text = textarea.value;
+        const insertText = `[${cardName}]`;
+
+        textarea.value = text.slice(0, cursorPos) + insertText + text.slice(cursorPos);
+        textarea.focus();
+        textarea.selectionStart = textarea.selectionEnd = cursorPos + insertText.length;
+      });
+    });
+  </script>
+</body>
+</html>

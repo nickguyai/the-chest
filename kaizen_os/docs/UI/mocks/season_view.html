@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Season View - Kaizen OS</title>
+    <style>
+        :root {
+            /* Zen UI Palette */
+            --color-primary: #8B9467;
+            --color-primary-light: rgba(139, 148, 103, 0.1);
+            --color-primary-hover: #7A8258;
+            --color-bg: #F5F1EB;
+            --color-card-bg: rgba(255, 255, 255, 0.95);
+            --color-text-main: #1A1A1A;
+            --color-text-secondary: #666666;
+            --color-text-muted: #999999;
+            --color-border: rgba(139, 148, 103, 0.2);
+            --color-success: #27AE60;
+            --color-warning: #F39C12;
+            --color-danger: #E74C3C;
+            
+            --shadow-card: 0 4px 20px rgba(0, 0, 0, 0.04);
+            --radius-lg: 20px;
+            --radius-md: 12px;
+            --radius-sm: 8px;
+            
+            --font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            --transition: all 0.2s ease;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: var(--font-family);
+            background-color: var(--color-bg);
+            color: var(--color-text-main);
+            line-height: 1.5;
+            min-height: 100vh;
+            padding: 40px 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        /* Header */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 32px;
+        }
+
+        .header-content h1 {
+            font-size: 24px;
+            font-weight: 600;
+            color: var(--color-text-main);
+            margin-bottom: 4px;
+        }
+
+        .header-content p {
+            font-size: 14px;
+            color: var(--color-text-secondary);
+        }
+
+        .btn-back {
+            background: none;
+            border: none;
+            color: var(--color-text-secondary);
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            padding: 8px 12px;
+            border-radius: var(--radius-sm);
+            transition: var(--transition);
+        }
+
+        .btn-back:hover {
+            background-color: var(--color-primary-light);
+            color: var(--color-primary);
+        }
+
+        /* Season Summary Card */
+        .card {
+            background: var(--color-card-bg);
+            border-radius: var(--radius-lg);
+            padding: 32px;
+            box-shadow: var(--shadow-card);
+            border: 1px solid var(--color-border);
+            margin-bottom: 24px;
+        }
+
+        .field-group {
+            margin-bottom: 24px;
+        }
+
+        .field-label {
+            display: block;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--color-text-secondary);
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+
+        .field-value-lg {
+            font-size: 32px;
+            font-weight: 600;
+            color: var(--color-primary);
+            font-family: monospace; /* For numbers */
+        }
+
+        .progress-container {
+            margin-top: 24px;
+        }
+        
+        .progress-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-size: 13px;
+            color: var(--color-text-secondary);
+        }
+
+        .progress-track {
+            height: 8px;
+            background: rgba(0,0,0,0.05);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: var(--color-primary);
+            border-radius: 4px;
+            width: 35%; /* Demo value */
+        }
+
+        /* Allocation Editor */
+        .allocation-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .allocation-total {
+            font-size: 14px;
+            font-weight: 500;
+            padding: 4px 12px;
+            border-radius: 20px;
+            background: var(--color-primary-light);
+            color: var(--color-primary);
+        }
+
+        .allocation-item {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 16px 0;
+            border-bottom: 1px solid rgba(0,0,0,0.05);
+        }
+
+        .allocation-item:last-child {
+            border-bottom: none;
+        }
+
+        .theme-info {
+            flex: 1;
+            min-width: 200px;
+        }
+
+        .theme-name {
+            font-weight: 500;
+            font-size: 15px;
+            color: var(--color-text-main);
+            margin-bottom: 2px;
+        }
+
+        .theme-hours {
+            font-size: 12px;
+            color: var(--color-text-secondary);
+        }
+
+        .slider-container {
+            flex: 2;
+            padding: 0 16px;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            -webkit-appearance: none;
+            appearance: none;
+            background: transparent;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 20px;
+            width: 20px;
+            border-radius: 50%;
+            background: #fff;
+            border: 2px solid var(--color-primary);
+            cursor: pointer;
+            margin-top: -8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        input[type="range"]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            background: rgba(139, 148, 103, 0.2);
+            border-radius: 2px;
+        }
+
+        input[type="range"]:focus {
+            outline: none;
+        }
+
+        .percentage-input {
+            width: 60px;
+            padding: 8px;
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-sm);
+            text-align: center;
+            font-size: 14px;
+            color: var(--color-text-main);
+            font-weight: 500;
+        }
+
+        .percentage-input:focus {
+            outline: none;
+            border-color: var(--color-primary);
+            box-shadow: 0 0 0 3px var(--color-primary-light);
+        }
+
+        /* Save Button */
+        .actions {
+            margin-top: 32px;
+            text-align: right;
+        }
+
+        .btn-save {
+            background: linear-gradient(135deg, #8B9467 0%, #7A8258 100%);
+            color: white;
+            border: none;
+            padding: 12px 32px;
+            font-size: 15px;
+            font-weight: 600;
+            border-radius: var(--radius-md);
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(139, 148, 103, 0.2);
+            transition: var(--transition);
+        }
+
+        .btn-save:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(139, 148, 103, 0.3);
+        }
+
+        /* Form Inputs */
+        .text-input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-md);
+            font-size: 15px;
+            color: var(--color-text-main);
+            background: #fff;
+            transition: var(--transition);
+        }
+
+        .text-input:focus {
+            outline: none;
+            border-color: var(--color-primary);
+            box-shadow: 0 0 0 3px var(--color-primary-light);
+        }
+
+        /* Toggle Switch */
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 52px;
+            height: 32px;
+        }
+
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 34px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 24px;
+            width: 24px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+        input:checked + .slider {
+            background-color: var(--color-primary);
+        }
+
+        input:focus + .slider {
+            box-shadow: 0 0 1px var(--color-primary);
+        }
+
+        input:checked + .slider:before {
+            transform: translateX(20px);
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header class="header">
+        <div class="header-content">
+            <h1>Q1 2025: Season of Foundation</h1>
+            <p>Jan 1 - Mar 31 • Week 4 of 12</p>
+        </div>
+        <button class="btn-back">← Back to Dashboard</button>
+    </header>
+
+    <div class="card">
+        <div class="field-group" style="margin-bottom: 32px;">
+            <label class="field-label">Season Name</label>
+            <input type="text" class="text-input" value="Q1 2025: Season of Foundation" style="width: 100%; font-size: 18px; font-weight: 500;">
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 24px;">
+            <div class="field-group">
+                <label class="field-label">Start Date</label>
+                <input type="date" class="text-input" value="2025-01-01">
+            </div>
+            <div class="field-group">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <label class="field-label" style="margin-bottom: 0;">Active Season</label>
+                    <label class="toggle-switch">
+                        <input type="checkbox" checked>
+                        <span class="slider round"></span>
+                    </label>
+                </div>
+                <p style="font-size: 12px; color: var(--color-text-secondary); margin-top: 8px;">
+                    This season is currently active (visible on dashboard).
+                </p>
+            </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 24px; padding-top: 24px; border-top: 1px solid rgba(0,0,0,0.05);">
+            <div class="field-group">
+                <label class="field-label">Duration (Weeks)</label>
+                <div class="number-control">
+                    <input type="number" class="text-input" value="12" id="duration-input">
+                </div>
+            </div>
+            <div class="field-group">
+                <label class="field-label">Utility Rate (Hours/Week)</label>
+                <div class="number-control">
+                    <input type="number" class="text-input" value="40" id="rate-input">
+                </div>
+            </div>
+            <div class="field-group">
+                <label class="field-label">Total Budget</label>
+                <div class="field-value-lg" id="total-budget_display">480h</div>
+            </div>
+        </div>
+
+        <!-- Weekly Capacity Visualization -->
+        <div style="margin-top: 24px; padding: 20px; background: rgba(0,0,0,0.02); border-radius: 12px;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                <label class="field-label" style="text-transform: none; color: var(--color-text-main); font-weight: 500;">Weekly Capacity Context (168h)</label>
+                <span style="font-size: 13px; color: var(--color-text-secondary);" id="buffer-text">Buffer: 65h remaining</span>
+            </div>
+            
+            <div style="height: 24px; width: 100%; display: flex; border-radius: 6px; overflow: hidden; font-size: 11px; color: white; font-weight: 600; line-height: 24px;">
+                <!-- Sleep: 49h (29%) -->
+                <div style="width: 29.1%; background: #95A5A6; text-align: center; white-space: nowrap; overflow: hidden;" title="Sleep: 7h/day (49h)">Sleep</div>
+                <!-- Admin: 14h (8.3%) -->
+                <div style="width: 8.3%; background: #BDC3C7; text-align: center; white-space: nowrap; overflow: hidden;" title="Admin: 2h/day (14h)">Admin</div>
+                <!-- Utility: Variable -->
+                <div id="viz-utility" style="width: 23.8%; background: var(--color-primary); text-align: center; white-space: nowrap; overflow: hidden; transition: width 0.3s ease;">Focus</div>
+                <!-- Buffer: Remainder -->
+                <div id="viz-buffer" style="width: 38.8%; background: #D6DBDF; color: #555; text-align: center; white-space: nowrap; overflow: hidden; transition: width 0.3s ease;">Buffer</div>
+            </div>
+            <div style="display: flex; gap: 16px; margin-top: 8px; font-size: 11px; color: var(--color-text-secondary);">
+                <span>• Sleep (7h/day)</span>
+                <span>• Admin (2h/day)</span>
+                <span>• <strong>Suggested Buffer: Remainder</strong></span>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="allocation-header">
+            <h3>Theme Allocations</h3>
+            <span class="allocation-total">Total: 100%</span>
+        </div>
+
+        <div class="allocation-list">
+            <!-- Theme 1 -->
+            <div class="allocation-item">
+                <div class="theme-info">
+                    <div class="theme-name">Health & Self Mastery</div>
+                    <div class="theme-hours">120h budget</div>
+                </div>
+                <div class="slider-container">
+                    <input type="range" min="0" max="100" value="25" class="allocation-slider" data-target="input-1">
+                </div>
+                <div class="input-container">
+                    <input type="number" value="25" class="percentage-input" id="input-1"> %
+                </div>
+            </div>
+
+            <!-- Theme 2 -->
+            <div class="allocation-item">
+                <div class="theme-info">
+                    <div class="theme-name">Mastery & Impact</div>
+                    <div class="theme-hours">192h budget</div>
+                </div>
+                <div class="slider-container">
+                    <input type="range" min="0" max="100" value="40" class="allocation-slider" data-target="input-2">
+                </div>
+                <div class="input-container">
+                    <input type="number" value="40" class="percentage-input" id="input-2"> %
+                </div>
+            </div>
+
+            <!-- Theme 3 -->
+            <div class="allocation-item">
+                <div class="theme-info">
+                    <div class="theme-name">Love & Presence</div>
+                    <div class="theme-hours">96h budget</div>
+                </div>
+                <div class="slider-container">
+                    <input type="range" min="0" max="100" value="20" class="allocation-slider" data-target="input-3">
+                </div>
+                <div class="input-container">
+                    <input type="number" value="20" class="percentage-input" id="input-3"> %
+                </div>
+            </div>
+
+            <!-- Theme 4 -->
+            <div class="allocation-item">
+                <div class="theme-info">
+                    <div class="theme-name">Wisdom & Humility</div>
+                    <div class="theme-hours">72h budget</div>
+                </div>
+                <div class="slider-container">
+                    <input type="range" min="0" max="100" value="15" class="allocation-slider" data-target="input-4">
+                </div>
+                <div class="input-container">
+                    <input type="number" value="15" class="percentage-input" id="input-4"> %
+                </div>
+            </div>
+        </div>
+
+        <div class="actions">
+            <button class="btn-save">Save Allocations</button>
+        </div>
+    </div>
+
+    <!-- Historical Seasons -->
+    <div style="margin-top: 40px; border-top: 1px solid rgba(0,0,0,0.05); padding-top: 32px;">
+        <h3 style="font-size: 18px; font-weight: 600; margin-bottom: 16px; color: var(--color-text-main);">Historical Seasons</h3>
+        
+        <div style="display: grid; gap: 16px;">
+            <!-- History Item -->
+            <div class="card" style="margin-bottom: 0; padding: 20px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; transition: var(--transition);">
+                <div>
+                    <div style="font-weight: 600; font-size: 16px;">Q4 2024: Season of Expansion</div>
+                    <div style="color: var(--color-text-secondary); font-size: 13px; margin-top: 4px;">Oct 1 - Dec 31, 2024 • Completed</div>
+                </div>
+                <button style="background: white; border: 1px solid var(--color-border); border-radius: var(--radius-sm); padding: 8px 16px; font-size: 13px; font-weight: 500; color: var(--color-text-secondary);">View</button>
+            </div>
+
+             <!-- History Item -->
+             <div class="card" style="margin-bottom: 0; padding: 20px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; transition: var(--transition);">
+                <div>
+                    <div style="font-weight: 600; font-size: 16px;">Q3 2024: Season of Build</div>
+                    <div style="color: var(--color-text-secondary); font-size: 13px; margin-top: 4px;">Jul 1 - Sep 30, 2024 • Completed</div>
+                </div>
+                <button style="background: white; border: 1px solid var(--color-border); border-radius: var(--radius-sm); padding: 8px 16px; font-size: 13px; font-weight: 500; color: var(--color-text-secondary);">View</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Simple script to sync sliders and inputs
+    document.querySelectorAll('.allocation-slider').forEach(slider => {
+        slider.addEventListener('input', (e) => {
+            const targetId = e.target.getAttribute('data-target');
+            const input = document.getElementById(targetId);
+            if (input) {
+                input.value = e.target.value;
+                updateTotal();
+            }
+        });
+    });
+    
+    document.querySelectorAll('.percentage-input').forEach(input => {
+        input.addEventListener('input', (e) => {
+             // locate the slider
+             const slider = document.querySelector(`.allocation-slider[data-target="${e.target.id}"]`);
+             if(slider) {
+                 slider.value = e.target.value;
+                 updateTotal();
+             }
+        });
+    });
+
+    function updateTotal() {
+        let total = 0;
+        document.querySelectorAll('.percentage-input').forEach(input => {
+            total += parseInt(input.value || 0);
+        });
+        const totalEl = document.querySelector('.allocation-total');
+        totalEl.textContent = `Total: ${total}%`;
+        
+        if (total === 100) {
+            totalEl.style.color = '#27AE60';
+            totalEl.style.background = 'rgba(39, 174, 96, 0.1)';
+        } else if (total > 100) {
+            totalEl.style.color = '#E74C3C';
+            totalEl.style.background = 'rgba(231, 76, 60, 0.1)';
+        } else {
+            totalEl.style.color = '#F39C12';
+            totalEl.style.background = 'rgba(243, 156, 18, 0.1)';
+        }
+    }
+
+    // Budget Calculation Logic
+    const durationInput = document.getElementById('duration-input');
+    const rateInput = document.getElementById('rate-input');
+    const display = document.getElementById('total-budget_display');
+    
+    // Viz elements
+    const vizUtility = document.getElementById('viz-utility');
+    const vizBuffer = document.getElementById('viz-buffer');
+    const bufferText = document.getElementById('buffer-text');
+
+    function updateBudget() {
+        // Enforce Limits
+        let rate = parseInt(rateInput.value) || 0;
+        if (rate > 168) {
+            rate = 168;
+            rateInput.value = 168;
+        }
+
+        // Budget
+        const weeks = parseInt(durationInput.value) || 0;
+        display.textContent = `${weeks * rate}h`;
+
+        // UI Warning for High Load (> 105h)
+        if (rate > 105) {
+            rateInput.style.borderColor = '#E74C3C';
+            rateInput.style.color = '#E74C3C';
+            // Add warning if not exists
+            if (!document.getElementById('rate-warning')) {
+                const warn = document.createElement('div');
+                warn.id = 'rate-warning';
+                warn.style.color = '#E74C3C';
+                warn.style.fontSize = '12px';
+                warn.style.marginTop = '4px';
+                warn.style.fontWeight = '500';
+                warn.innerText = '⚠️ Warning: Extremely high cognitive load';
+                rateInput.parentNode.appendChild(warn);
+            }
+        } else {
+             rateInput.style.borderColor = 'rgba(139, 148, 103, 0.2)'; // Default border
+             rateInput.style.color = 'var(--color-text-main)';
+             const warn = document.getElementById('rate-warning');
+             if (warn) warn.remove();
+        }
+
+        // Capacity Viz
+        // Total 168h
+        // Fixed: 63h (49 sleep + 14 admin) -> 37.5%
+        // Utility: rate -> (rate / 168 * 100)%
+        const totalHours = 168;
+        const fixedHours = 49 + 14; 
+        const utilityHours = Math.min(rate, totalHours - fixedHours); // Cap structure
+        const remainingBuffer = Math.max(0, totalHours - fixedHours - rate);
+
+        const utilityPct = (utilityHours / totalHours) * 100;
+        const bufferPct = (remainingBuffer / totalHours) * 100;
+
+        vizUtility.style.width = `${utilityPct}%`;
+        vizUtility.textContent = `Focus: ${rate}h`;
+        
+        vizBuffer.style.width = `${bufferPct}%`;
+        vizBuffer.textContent = `Buffer: ${remainingBuffer}h`;
+        
+        bufferText.textContent = `Buffer: ${remainingBuffer}h remaining`;
+        
+        // Color warning if buffer low
+        if (remainingBuffer < 20) {
+             vizBuffer.style.background = '#E74C3C'; // Red warning
+             vizBuffer.style.color = 'white';
+        } else {
+             vizBuffer.style.background = '#D6DBDF';
+             vizBuffer.style.color = '#555';
+        }
+    }
+
+    durationInput.addEventListener('input', updateBudget);
+    rateInput.addEventListener('input', updateBudget);
+    
+    // Init
+    updateBudget();
+
+</script>
+
+</body>
+</html>

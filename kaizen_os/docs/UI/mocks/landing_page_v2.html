@@ -1,0 +1,1166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kaizen OS - Landing Page v2 Mock</title>
+  <style>
+    /* Kaizen OS - Zen UI Design System */
+    :root {
+      --color-sage: #8B9467;
+      --color-sage-light: rgba(139, 148, 103, 0.1);
+      --color-sage-lighter: rgba(139, 148, 103, 0.05);
+      --color-sage-border: rgba(139, 148, 103, 0.2);
+      --color-sage-border-light: rgba(139, 148, 103, 0.08);
+      --color-bg: #F5F1EB;
+      --color-card: rgba(254, 254, 254, 0.95);
+      --color-white: #FFFFFF;
+      --color-text-primary: #1A1A1A;
+      --color-text-secondary: #666666;
+      --color-text-muted: #999999;
+      --color-critical: #E74C3C;
+      --color-success: #27AE60;
+      --color-warning: #F39C12;
+      --font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: var(--font-family);
+      font-size: 14px;
+      line-height: 1.5;
+      color: var(--color-text-primary);
+      background-color: var(--color-bg);
+      min-height: 100vh;
+    }
+
+    .app {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Header */
+    .header {
+      padding: 20px 24px;
+      border-bottom: 1px solid var(--color-sage-border-light);
+      background: var(--color-card);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 24px;
+    }
+
+    .logo {
+      font-size: 20px;
+      font-weight: 600;
+      color: var(--color-sage);
+    }
+
+    .nav-btn {
+      background: none;
+      border: none;
+      color: var(--color-text-secondary);
+      font-size: 14px;
+      cursor: pointer;
+      font-weight: 500;
+    }
+
+    .nav-btn:hover {
+      color: var(--color-sage);
+    }
+
+    .season-select {
+      padding: 8px 32px 8px 16px;
+      border-radius: 12px;
+      border: 1px solid var(--color-sage-border);
+      background: var(--color-white);
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--color-text-primary);
+      cursor: pointer;
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23666' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 12px center;
+    }
+
+    /* Main Content - New Grid Layout */
+    .main {
+      padding: 24px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* NEW: Landing Grid Layout */
+    .landing-grid {
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      grid-template-rows: auto 1fr;
+      gap: 20px;
+      flex: 1;
+      min-height: 0;
+    }
+
+    /* Row 1: Themes + Season Card */
+    .top-row {
+      grid-column: 1 / -1;
+      display: flex;
+      gap: 16px;
+      flex-shrink: 0;
+      align-items: stretch;
+    }
+
+    .themes-row {
+      display: flex;
+      gap: 16px;
+      overflow-x: auto;
+      padding-bottom: 8px;
+      flex: 1;
+      min-width: 0;
+    }
+
+    /* Left column: Vetoes only */
+    .left-column {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    /* Right column: Calendar */
+    .calendar-column {
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Theme Cards */
+    .theme-card {
+      background: var(--color-card);
+      border-radius: 16px;
+      border: 1px solid var(--color-sage-border-light);
+      padding: 20px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
+      cursor: pointer;
+      transition: all 0.2s ease;
+      min-width: 200px;
+      flex-shrink: 0;
+      position: relative;
+    }
+
+    .theme-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+    }
+
+    .theme-card.selected {
+      border-color: var(--color-sage);
+      box-shadow: 0 0 0 3px var(--color-sage-light), 0 8px 32px rgba(0, 0, 0, 0.08);
+    }
+
+    .theme-title {
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 12px;
+      color: var(--color-text-primary);
+    }
+
+    .hours-row {
+      display: flex;
+      gap: 16px;
+      padding-top: 12px;
+      border-top: 1px solid var(--color-sage-border-light);
+    }
+
+    .hours-block {
+      text-align: center;
+    }
+
+    .hours-label {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--color-text-muted);
+      margin-bottom: 4px;
+    }
+
+    .hours-value {
+      font-size: 18px;
+      font-weight: 600;
+      font-family: monospace;
+      color: var(--color-text-primary);
+    }
+
+    .hours-value.week {
+      color: var(--color-sage);
+    }
+
+    .add-theme-card {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100px;
+      border: 2px dashed rgba(139, 148, 103, 0.2);
+      background: rgba(139, 148, 103, 0.03);
+      box-shadow: none;
+    }
+
+    .add-theme-card:hover {
+      border-color: rgba(139, 148, 103, 0.4);
+      transform: none;
+    }
+
+    .add-theme-text {
+      color: var(--color-sage);
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    /* Don't Do List Section */
+    .dont-do-section {
+      background: var(--color-card);
+      border-radius: 16px;
+      border: 1px solid var(--color-sage-border-light);
+      padding: 20px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .section-title {
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 12px;
+      color: var(--color-text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      flex-shrink: 0;
+    }
+
+    .dont-do-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      overflow-y: auto;
+      flex: 1;
+      min-height: 0;
+    }
+
+    .dont-do-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 12px;
+      border-radius: 10px;
+      background: var(--color-bg);
+      border: 1px solid var(--color-sage-border-light);
+      transition: all 0.2s ease;
+      flex-shrink: 0;
+    }
+
+    .dont-do-item:hover {
+      border-color: var(--color-sage-border);
+    }
+
+    .item-number {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      border: 2px solid var(--color-sage-border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--color-text-muted);
+      flex-shrink: 0;
+    }
+
+    .item-text {
+      font-size: 13px;
+      color: var(--color-text-primary);
+    }
+
+    /* Season Card (top-right position) */
+    .season-card {
+      background: var(--color-card);
+      border-radius: 16px;
+      border: 1px solid var(--color-sage-border-light);
+      padding: 16px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
+      flex-shrink: 0;
+      width: 240px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+
+    .season-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
+    .season-name {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--color-text-primary);
+    }
+
+    .season-dates {
+      font-size: 10px;
+      color: var(--color-text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .edit-btn {
+      background: rgba(139, 148, 103, 0.1);
+      border: none;
+      border-radius: 8px;
+      padding: 4px 8px;
+      font-size: 10px;
+      color: var(--color-sage);
+      cursor: pointer;
+      font-weight: 600;
+    }
+
+    .season-progress {
+      margin-bottom: 12px;
+    }
+
+    .progress-bar {
+      height: 6px;
+      background: var(--color-sage-light);
+      border-radius: 3px;
+      overflow: hidden;
+      margin-bottom: 6px;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--color-sage), #7a8359);
+      border-radius: 3px;
+      transition: width 0.5s ease;
+    }
+
+    .progress-labels {
+      display: flex;
+      justify-content: space-between;
+      font-size: 10px;
+      color: var(--color-text-muted);
+    }
+
+    .season-stats {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .stat-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .stat-label {
+      font-size: 12px;
+      color: var(--color-text-secondary);
+    }
+
+    .stat-value {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--color-text-primary);
+    }
+
+    .stat-value.sage { color: var(--color-sage); }
+
+    /* Calendar Component */
+    .calendar-card {
+      background: var(--color-card);
+      border-radius: 16px;
+      border: 1px solid var(--color-sage-border-light);
+      padding: 20px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+
+    .calendar-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+
+    .calendar-nav {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .calendar-nav-btn {
+      background: none;
+      border: 1px solid var(--color-sage-border);
+      border-radius: 8px;
+      padding: 6px 10px;
+      cursor: pointer;
+      color: var(--color-text-secondary);
+      font-size: 12px;
+    }
+
+    .calendar-nav-btn:hover {
+      background: var(--color-sage-light);
+      color: var(--color-sage);
+    }
+
+    .calendar-week-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--color-text-primary);
+    }
+
+    .calendar-grid {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 50px repeat(7, 1fr);
+      grid-template-rows: auto 1fr;
+      gap: 1px;
+      background: var(--color-sage-border-light);
+      border-radius: 12px;
+      overflow: hidden;
+      min-height: 0;
+    }
+
+    .calendar-day-header {
+      background: var(--color-bg);
+      padding: 10px 6px;
+      text-align: center;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--color-text-secondary);
+    }
+
+    .calendar-day-header.today {
+      color: var(--color-sage);
+      background: var(--color-sage-light);
+    }
+
+    .calendar-time-col {
+      background: var(--color-bg);
+      padding: 4px;
+      font-size: 10px;
+      color: var(--color-text-muted);
+      text-align: right;
+      overflow-y: auto;
+    }
+
+    .calendar-day-col {
+      background: var(--color-white);
+      position: relative;
+      overflow-y: auto;
+    }
+
+    .calendar-event {
+      position: absolute;
+      left: 4px;
+      right: 4px;
+      border-radius: 6px;
+      padding: 6px 8px;
+      font-size: 11px;
+      font-weight: 500;
+      overflow: hidden;
+      cursor: pointer;
+      transition: transform 0.15s ease;
+    }
+
+    .calendar-event:hover {
+      transform: scale(1.02);
+    }
+
+    .calendar-event.theme-1 {
+      background: rgba(139, 148, 103, 0.15);
+      border-left: 3px solid var(--color-sage);
+      color: #5a6343;
+    }
+
+    .calendar-event.theme-2 {
+      background: rgba(155, 89, 182, 0.15);
+      border-left: 3px solid #9B59B6;
+      color: #7b4293;
+    }
+
+    .calendar-event.theme-3 {
+      background: rgba(52, 152, 219, 0.15);
+      border-left: 3px solid #3498DB;
+      color: #2471a3;
+    }
+
+    .calendar-event.highlighted {
+      box-shadow: 0 0 0 2px var(--color-sage);
+      z-index: 2;
+    }
+
+    .calendar-event-title {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .calendar-event-time {
+      font-size: 10px;
+      opacity: 0.7;
+      margin-top: 2px;
+    }
+
+    /* Time slots grid */
+    .calendar-body {
+      display: contents;
+    }
+
+    .time-slot {
+      grid-column: 1;
+      background: var(--color-bg);
+      padding: 4px 8px;
+      font-size: 10px;
+      color: var(--color-text-muted);
+      text-align: right;
+      border-bottom: 1px solid var(--color-sage-border-light);
+      height: 40px;
+    }
+
+    .day-column {
+      background: var(--color-white);
+      position: relative;
+      border-left: 1px solid var(--color-sage-border-light);
+    }
+
+    /* Responsive - Large Desktop (1400px+) */
+    @media (min-width: 1400px) {
+      .landing-grid {
+        grid-template-columns: 320px 1fr;
+      }
+
+      .theme-card {
+        min-width: 200px;
+      }
+    }
+
+    /* Desktop (1024px - 1399px) - Default styles apply */
+
+    /* Tablet Landscape (768px - 1023px) */
+    @media (max-width: 1023px) {
+      .main {
+        padding: 16px;
+      }
+
+      .landing-grid {
+        grid-template-columns: 260px 1fr;
+        gap: 16px;
+      }
+
+      .theme-card {
+        min-width: 150px;
+        padding: 14px;
+      }
+
+      .calendar-grid {
+        grid-template-columns: 45px repeat(7, 1fr);
+      }
+
+      .calendar-day-header {
+        padding: 8px 4px;
+        font-size: 10px;
+      }
+
+      .calendar-event {
+        padding: 3px 5px;
+        font-size: 9px;
+      }
+
+      .calendar-event-time {
+        display: none;
+      }
+    }
+
+    /* Tablet Portrait (640px - 767px) */
+    @media (max-width: 767px) {
+      .header {
+        padding: 12px 16px;
+      }
+
+      .main {
+        padding: 12px;
+      }
+
+      .landing-grid {
+        grid-template-columns: 1fr;
+        gap: 12px;
+      }
+
+      .top-row {
+        flex-direction: column;
+        gap: 12px;
+      }
+
+      .season-card {
+        width: 100%;
+      }
+
+      .theme-card {
+        min-width: 130px;
+        padding: 12px;
+      }
+
+      .theme-title {
+        font-size: 12px;
+      }
+
+      .hours-value {
+        font-size: 14px;
+      }
+
+      /* 5-day calendar view on tablet */
+      .calendar-grid {
+        grid-template-columns: 40px repeat(5, 1fr);
+      }
+
+      .cal-day-6, .cal-day-7 {
+        display: none;
+      }
+
+      .calendar-column {
+        min-height: 300px;
+      }
+    }
+
+    /* Mobile (< 640px) */
+    @media (max-width: 639px) {
+      .header {
+        padding: 10px 12px;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      .header-left {
+        width: 100%;
+        justify-content: space-between;
+      }
+
+      .logo {
+        font-size: 16px;
+      }
+
+      .nav-btn {
+        font-size: 11px;
+      }
+
+      .season-select {
+        width: 100%;
+        font-size: 11px;
+      }
+
+      .main {
+        padding: 10px;
+      }
+
+      .landing-grid {
+        gap: 10px;
+      }
+
+      .top-row {
+        flex-direction: column;
+        gap: 10px;
+      }
+
+      .themes-row {
+        gap: 8px;
+        margin: 0 -10px;
+        padding: 0 10px 8px;
+      }
+
+      .theme-card {
+        min-width: 110px;
+        padding: 10px;
+        border-radius: 10px;
+      }
+
+      .theme-title {
+        font-size: 11px;
+        margin-bottom: 6px;
+      }
+
+      .hours-row {
+        gap: 6px;
+        padding-top: 6px;
+      }
+
+      .hours-label {
+        font-size: 8px;
+      }
+
+      .hours-value {
+        font-size: 12px;
+      }
+
+      .season-card {
+        width: 100%;
+        padding: 12px;
+      }
+
+      .dont-do-section {
+        max-height: 180px;
+      }
+
+      .dont-do-section,
+      .calendar-card {
+        border-radius: 10px;
+        padding: 12px;
+      }
+
+      .section-title {
+        font-size: 10px;
+        margin-bottom: 8px;
+      }
+
+      .dont-do-item {
+        padding: 6px 10px;
+        gap: 8px;
+        border-radius: 8px;
+      }
+
+      .item-number {
+        width: 18px;
+        height: 18px;
+        font-size: 9px;
+      }
+
+      .item-text {
+        font-size: 11px;
+      }
+
+      /* 3-day calendar on mobile */
+      .calendar-grid {
+        grid-template-columns: 35px repeat(3, 1fr);
+      }
+
+      .cal-day-1, .cal-day-2, .cal-day-6, .cal-day-7 {
+        display: none;
+      }
+
+      .cal-day-3, .cal-day-4, .cal-day-5 {
+        display: block;
+      }
+
+      .calendar-header {
+        margin-bottom: 10px;
+      }
+
+      .calendar-week-title {
+        font-size: 12px;
+      }
+
+      .calendar-nav-btn {
+        padding: 4px 6px;
+        font-size: 10px;
+      }
+
+      .calendar-time-col > div {
+        height: 35px !important;
+      }
+
+      .calendar-event {
+        padding: 3px 4px;
+        font-size: 9px;
+        border-radius: 4px;
+      }
+    }
+
+    /* Very small mobile (< 400px) */
+    @media (max-width: 399px) {
+      .header-left .nav-btn:not(:first-of-type) {
+        display: none;
+      }
+
+      .theme-card {
+        min-width: 100px;
+      }
+
+      /* Single day calendar */
+      .calendar-grid {
+        grid-template-columns: 30px 1fr;
+      }
+
+      .cal-day-1, .cal-day-2, .cal-day-4, .cal-day-5, .cal-day-6, .cal-day-7 {
+        display: none;
+      }
+
+      .cal-day-3 {
+        display: block;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <!-- Header -->
+    <header class="header">
+      <div class="header-left">
+        <div class="logo">Kaizen OS</div>
+        <button class="nav-btn">Weekly</button>
+        <button class="nav-btn">All Actions</button>
+        <button class="nav-btn">Settings</button>
+      </div>
+      <select class="season-select">
+        <option>Q1 2025 - Focus Season</option>
+        <option>Q4 2024 - Growth</option>
+      </select>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main">
+      <div class="landing-grid">
+        <!-- Row 1: Themes + Season Card -->
+        <div class="top-row">
+          <div class="themes-row">
+            <div class="theme-card selected" onclick="selectTheme(this)">
+              <h3 class="theme-title">Health & Fitness</h3>
+              <div class="hours-row">
+                <div class="hours-block">
+                  <div class="hours-label">Season</div>
+                  <div class="hours-value">24h</div>
+                </div>
+                <div class="hours-block">
+                  <div class="hours-label">This Week</div>
+                  <div class="hours-value week">4.5h</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="theme-card" onclick="selectTheme(this)">
+              <h3 class="theme-title">Career Growth</h3>
+              <div class="hours-row">
+                <div class="hours-block">
+                  <div class="hours-label">Season</div>
+                  <div class="hours-value">32h</div>
+                </div>
+                <div class="hours-block">
+                  <div class="hours-label">This Week</div>
+                  <div class="hours-value week">6h</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="theme-card" onclick="selectTheme(this)">
+              <h3 class="theme-title">Creative Projects</h3>
+              <div class="hours-row">
+                <div class="hours-block">
+                  <div class="hours-label">Season</div>
+                  <div class="hours-value">18h</div>
+                </div>
+                <div class="hours-block">
+                  <div class="hours-label">This Week</div>
+                  <div class="hours-value week">2h</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="theme-card" onclick="selectTheme(this)">
+              <h3 class="theme-title">Relationships</h3>
+              <div class="hours-row">
+                <div class="hours-block">
+                  <div class="hours-label">Season</div>
+                  <div class="hours-value">12h</div>
+                </div>
+                <div class="hours-block">
+                  <div class="hours-label">This Week</div>
+                  <div class="hours-value week">3h</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="theme-card add-theme-card">
+              <span class="add-theme-text">+ Add Theme</span>
+            </div>
+          </div>
+
+          <!-- Season Card (top right) -->
+          <div class="season-card">
+            <div class="season-header">
+              <div>
+                <div class="season-name">Q1 2025 - Focus</div>
+                <div class="season-dates">Jan 1 - Mar 31</div>
+              </div>
+              <button class="edit-btn">Edit</button>
+            </div>
+
+            <div class="season-progress">
+              <div class="progress-bar">
+                <div class="progress-fill" style="width: 35%"></div>
+              </div>
+              <div class="progress-labels">
+                <span>Week 5 of 13</span>
+                <span>35%</span>
+              </div>
+            </div>
+
+            <div class="season-stats">
+              <div class="stat-row">
+                <span class="stat-label">Total Capacity</span>
+                <span class="stat-value">156h</span>
+              </div>
+              <div class="stat-row">
+                <span class="stat-label">Hours Logged</span>
+                <span class="stat-value sage">86h</span>
+              </div>
+              <div class="stat-row">
+                <span class="stat-label">Themes</span>
+                <span class="stat-value">4</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Row 2: Left Column (Vetoes only) -->
+        <div class="left-column">
+          <section class="dont-do-section">
+            <h2 class="section-title">Don't Do List</h2>
+            <div class="dont-do-list">
+              <div class="dont-do-item">
+                <span class="item-number">1</span>
+                <span class="item-text">No social media before 10am</span>
+              </div>
+              <div class="dont-do-item">
+                <span class="item-number">2</span>
+                <span class="item-text">No meetings on Wednesdays</span>
+              </div>
+              <div class="dont-do-item">
+                <span class="item-number">3</span>
+                <span class="item-text">No email after 6pm</span>
+              </div>
+              <div class="dont-do-item">
+                <span class="item-number">4</span>
+                <span class="item-text">No alcohol on weekdays</span>
+              </div>
+              <div class="dont-do-item">
+                <span class="item-number">5</span>
+                <span class="item-text">No phone in bedroom</span>
+              </div>
+              <div class="dont-do-item">
+                <span class="item-number">6</span>
+                <span class="item-text">No snacking after dinner</span>
+              </div>
+              <div class="dont-do-item">
+                <span class="item-number">7</span>
+                <span class="item-text">No news before noon</span>
+              </div>
+              <div class="dont-do-item">
+                <span class="item-number">8</span>
+                <span class="item-text">No multi-tasking in meetings</span>
+              </div>
+              <div class="dont-do-item">
+                <span class="item-number">9</span>
+                <span class="item-text">No caffeine after 2pm</span>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <!-- Row 2-3: Right Column (Calendar) -->
+        <div class="calendar-column">
+          <div class="calendar-card">
+            <div class="calendar-header">
+              <div class="calendar-nav">
+                <button class="calendar-nav-btn">&larr;</button>
+                <span class="calendar-week-title">Dec 30 - Jan 5, 2025</span>
+                <button class="calendar-nav-btn">&rarr;</button>
+              </div>
+              <button class="calendar-nav-btn">Today</button>
+            </div>
+
+            <!-- Week Calendar -->
+            <div class="calendar-grid">
+              <!-- Header Row -->
+              <div class="calendar-day-header cal-time-header"></div>
+              <div class="calendar-day-header cal-day-1">Mon 30</div>
+              <div class="calendar-day-header cal-day-2">Tue 31</div>
+              <div class="calendar-day-header cal-day-3 today">Wed 1</div>
+              <div class="calendar-day-header cal-day-4">Thu 2</div>
+              <div class="calendar-day-header cal-day-5">Fri 3</div>
+              <div class="calendar-day-header cal-day-6">Sat 4</div>
+              <div class="calendar-day-header cal-day-7">Sun 5</div>
+
+              <!-- Time Column + Day Columns -->
+              <div class="calendar-time-col">
+                <div style="height: 40px;">8:00</div>
+                <div style="height: 40px;">9:00</div>
+                <div style="height: 40px;">10:00</div>
+                <div style="height: 40px;">11:00</div>
+                <div style="height: 40px;">12:00</div>
+                <div style="height: 40px;">13:00</div>
+                <div style="height: 40px;">14:00</div>
+                <div style="height: 40px;">15:00</div>
+                <div style="height: 40px;">16:00</div>
+                <div style="height: 40px;">17:00</div>
+              </div>
+
+              <!-- Monday -->
+              <div class="calendar-day-col cal-day-1">
+                <div class="calendar-event theme-1 highlighted" style="top: 0; height: 60px;">
+                  <div class="calendar-event-title">Morning Workout</div>
+                  <div class="calendar-event-time">8:00 - 9:00</div>
+                </div>
+                <div class="calendar-event theme-2" style="top: 120px; height: 80px;">
+                  <div class="calendar-event-title">Team Standup</div>
+                  <div class="calendar-event-time">10:00 - 11:00</div>
+                </div>
+              </div>
+
+              <!-- Tuesday -->
+              <div class="calendar-day-col cal-day-2">
+                <div class="calendar-event theme-2" style="top: 80px; height: 80px;">
+                  <div class="calendar-event-title">1:1 with Manager</div>
+                  <div class="calendar-event-time">9:00 - 10:00</div>
+                </div>
+                <div class="calendar-event theme-3" style="top: 240px; height: 80px;">
+                  <div class="calendar-event-title">Design Review</div>
+                  <div class="calendar-event-time">14:00 - 15:00</div>
+                </div>
+              </div>
+
+              <!-- Wednesday (Today) -->
+              <div class="calendar-day-col cal-day-3 today-col" style="background: rgba(139, 148, 103, 0.03);">
+                <div class="calendar-event theme-1 highlighted" style="top: 0; height: 60px;">
+                  <div class="calendar-event-title">Gym Session</div>
+                  <div class="calendar-event-time">8:00 - 9:00</div>
+                </div>
+                <div class="calendar-event theme-3" style="top: 160px; height: 120px;">
+                  <div class="calendar-event-title">Deep Work Block</div>
+                  <div class="calendar-event-time">12:00 - 15:00</div>
+                </div>
+              </div>
+
+              <!-- Thursday -->
+              <div class="calendar-day-col cal-day-4">
+                <div class="calendar-event theme-2" style="top: 80px; height: 80px;">
+                  <div class="calendar-event-title">Sprint Planning</div>
+                  <div class="calendar-event-time">9:00 - 10:00</div>
+                </div>
+              </div>
+
+              <!-- Friday -->
+              <div class="calendar-day-col cal-day-5">
+                <div class="calendar-event theme-1 highlighted" style="top: 0; height: 60px;">
+                  <div class="calendar-event-title">Morning Run</div>
+                  <div class="calendar-event-time">8:00 - 9:00</div>
+                </div>
+                <div class="calendar-event theme-2" style="top: 200px; height: 80px;">
+                  <div class="calendar-event-title">Weekly Review</div>
+                  <div class="calendar-event-time">13:00 - 14:00</div>
+                </div>
+              </div>
+
+              <!-- Saturday -->
+              <div class="calendar-day-col cal-day-6">
+                <div class="calendar-event theme-3" style="top: 80px; height: 120px;">
+                  <div class="calendar-event-title">Creative Project</div>
+                  <div class="calendar-event-time">9:00 - 12:00</div>
+                </div>
+              </div>
+
+              <!-- Sunday -->
+              <div class="calendar-day-col cal-day-7">
+                <div class="calendar-event theme-1 highlighted" style="top: 40px; height: 80px;">
+                  <div class="calendar-event-title">Yoga Class</div>
+                  <div class="calendar-event-time">8:30 - 10:00</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Viewport Size Indicator (for testing) -->
+  <div id="viewport-indicator" style="
+    position: fixed;
+    bottom: 12px;
+    right: 12px;
+    background: rgba(0,0,0,0.7);
+    color: white;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-family: monospace;
+    z-index: 9999;
+  "></div>
+
+  <script>
+    // Theme selection interaction
+    function selectTheme(card) {
+      // Remove selected from all cards
+      document.querySelectorAll('.theme-card').forEach(c => {
+        c.classList.remove('selected');
+      });
+      // Add selected to clicked card
+      card.classList.add('selected');
+
+      // Get theme index for highlighting (mock logic)
+      const cards = [...document.querySelectorAll('.theme-card:not(.add-theme-card)')];
+      const index = cards.indexOf(card);
+
+      // Update highlighted events based on theme
+      document.querySelectorAll('.calendar-event').forEach(event => {
+        event.classList.remove('highlighted');
+      });
+
+      if (index >= 0) {
+        const themeClass = `theme-${index + 1}`;
+        document.querySelectorAll(`.calendar-event.${themeClass}`).forEach(event => {
+          event.classList.add('highlighted');
+        });
+      }
+    }
+
+    // Viewport size indicator
+    function updateViewportIndicator() {
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      let breakpoint = 'XL Desktop (1400+)';
+      if (w < 400) breakpoint = 'XS Mobile (<400)';
+      else if (w < 640) breakpoint = 'Mobile (400-639)';
+      else if (w < 768) breakpoint = 'Tablet Portrait (640-767)';
+      else if (w < 1024) breakpoint = 'Tablet Landscape (768-1023)';
+      else if (w < 1400) breakpoint = 'Desktop (1024-1399)';
+
+      document.getElementById('viewport-indicator').textContent =
+        `${w} x ${h} | ${breakpoint}`;
+    }
+
+    updateViewportIndicator();
+    window.addEventListener('resize', updateViewportIndicator);
+  </script>
+</body>
+</html>

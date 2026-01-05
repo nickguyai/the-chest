@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Contract View - Kaizen OS</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #F5F1EB;
+            color: #1A1A1A;
+            padding: 32px;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 32px;
+        }
+
+        .back-button {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: white;
+            border: 1px solid rgba(139, 148, 103, 0.2);
+            border-radius: 12px;
+            padding: 8px 16px;
+            color: #666666;
+            text-decoration: none;
+            font-size: 14px;
+            transition: all 0.2s ease;
+        }
+
+        .back-button:hover {
+            background: rgba(139, 148, 103, 0.05);
+            transform: translateX(-4px);
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 12px;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border-radius: 12px;
+            border: none;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #8B9467 0%, #9FAA7A 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(139, 148, 103, 0.3);
+        }
+
+        .btn-secondary {
+            background: white;
+            border: 1px solid rgba(139, 148, 103, 0.2);
+            color: #666666;
+        }
+
+        .btn-secondary:hover {
+            background: rgba(139, 148, 103, 0.05);
+        }
+
+        /* Contract Card Container */
+        .contract-card {
+            background: white;
+            border-radius: 20px;
+            border: 2px solid rgba(139, 148, 103, 0.15);
+            padding: 32px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
+        }
+
+        /* Top Row: Icon + Status */
+        .contract-header {
+            display: grid;
+            grid-template-columns: 120px 1fr;
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .icon-box {
+            height: 100px;
+            border: 2px solid #4A5568;
+            border-radius: 16px;
+            background: rgba(139, 148, 190, 0.08);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 48px;
+        }
+
+        .icon-box.experiment {
+            border-color: #C53030;
+            background: rgba(229, 115, 115, 0.08);
+        }
+
+        .icon-box.routine {
+            border-color: #D69E2E;
+            background: rgba(255, 183, 77, 0.08);
+        }
+
+        .icon-box.ops {
+            border-color: #2C7A7B;
+            background: rgba(77, 182, 172, 0.08);
+        }
+
+        .status-box {
+            height: 100px;
+            border: 2px solid rgba(139, 148, 103, 0.2);
+            border-radius: 16px;
+            background: white;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .status-label {
+            font-size: 12px;
+            font-weight: 600;
+            color: #666666;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .status-select {
+            flex: 1;
+            border: none;
+            background: transparent;
+            font-size: 16px;
+            font-weight: 600;
+            color: #1A1A1A;
+            cursor: pointer;
+        }
+
+        .status-select:focus {
+            outline: none;
+        }
+
+        /* Field Boxes */
+        .field-box {
+            border: 2px solid rgba(139, 148, 103, 0.2);
+            border-radius: 16px;
+            padding: 20px;
+            margin-bottom: 16px;
+            background: white;
+        }
+
+        .field-label {
+            font-size: 14px;
+            font-weight: 700;
+            color: #1A1A1A;
+            margin-bottom: 8px;
+            display: block;
+        }
+
+        .field-hint {
+            font-size: 12px;
+            color: #999999;
+            margin-top: 4px;
+            font-style: italic;
+        }
+
+        .field-input,
+        .field-textarea {
+            width: 100%;
+            border: none;
+            background: transparent;
+            font-size: 14px;
+            font-family: inherit;
+            color: #2C2C2C;
+            padding: 4px 0;
+        }
+
+        .field-input:focus,
+        .field-textarea:focus {
+            outline: none;
+        }
+
+        .field-textarea {
+            min-height: 80px;
+            resize: vertical;
+        }
+
+        .field-input::placeholder,
+        .field-textarea::placeholder {
+            color: #CCCCCC;
+        }
+
+        /* Lag Box - Experiment Only */
+        .lag-box {
+            background: repeating-linear-gradient(
+                45deg,
+                rgba(139, 148, 103, 0.03),
+                rgba(139, 148, 103, 0.03) 10px,
+                rgba(139, 148, 103, 0.08) 10px,
+                rgba(139, 148, 103, 0.08) 20px
+            );
+            border: 2px dashed rgba(139, 148, 103, 0.3);
+        }
+
+        .lag-note {
+            font-size: 11px;
+            color: #8B9467;
+            font-weight: 600;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        /* Allocation Box with Progress */
+        .allocation-box {
+            border: 2px solid rgba(139, 148, 103, 0.2);
+            border-radius: 16px;
+            padding: 20px;
+            background: white;
+        }
+
+        .allocation-inputs {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin-bottom: 12px;
+        }
+
+        .allocation-input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .allocation-label {
+            font-size: 12px;
+            font-weight: 600;
+            color: #666666;
+        }
+
+        .allocation-value {
+            font-size: 16px;
+            font-weight: 600;
+            color: #1A1A1A;
+            border: none;
+            background: transparent;
+            padding: 4px 0;
+            width: 80px;
+        }
+
+        .allocation-value:focus {
+            outline: none;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 24px;
+            background: rgba(139, 148, 103, 0.1);
+            border-radius: 12px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #4A5568 0%, #2D3748 100%);
+            border-radius: 12px;
+            transition: width 0.3s ease;
+        }
+
+        .progress-fill.experiment {
+            background: linear-gradient(90deg, #C53030 0%, #9B2C2C 100%);
+        }
+
+        .progress-fill.routine {
+            background: linear-gradient(90deg, #D69E2E 0%, #B7791F 100%);
+        }
+
+        .progress-fill.ops {
+            background: linear-gradient(90deg, #2C7A7B 0%, #234E52 100%);
+        }
+
+        .progress-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 11px;
+            font-weight: 700;
+            color: white;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+        }
+
+        /* Criteria List */
+        .criteria-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .criteria-item {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .criteria-bullet {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: #8B9467;
+            flex-shrink: 0;
+        }
+
+        .criteria-input {
+            flex: 1;
+            border: none;
+            border-bottom: 1px solid rgba(139, 148, 103, 0.15);
+            background: transparent;
+            font-size: 14px;
+            padding: 6px 0;
+            color: #2C2C2C;
+        }
+
+        .criteria-input:focus {
+            outline: none;
+            border-bottom-color: #8B9467;
+        }
+
+        .add-criteria {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            background: rgba(139, 148, 103, 0.08);
+            border: 1px dashed rgba(139, 148, 103, 0.3);
+            border-radius: 8px;
+            color: #8B9467;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 8px;
+        }
+
+        .add-criteria:hover {
+            background: rgba(139, 148, 103, 0.12);
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .contract-header {
+                grid-template-columns: 1fr;
+            }
+
+            .allocation-inputs {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <a href="theme_view.html" class="back-button">
+                <span>←</span>
+                <span>Back to Theme</span>
+            </a>
+            <div class="header-actions">
+                <button class="btn btn-secondary" onclick="cancelEdit()">Cancel</button>
+                <button class="btn btn-primary" onclick="saveContract()">Save</button>
+            </div>
+        </div>
+
+        <!-- Gate Contract -->
+        <div class="contract-card" id="gateContract">
+            <div class="contract-header">
+                <div class="icon-box">
+                    🚪
+                </div>
+                <div class="status-box">
+                    <span class="status-label">Status</span>
+                    <select class="status-select">
+                        <option>On Track</option>
+                        <option>At Risk</option>
+                        <option>Failing</option>
+                        <option>Completed</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="field-box">
+                <label class="field-label">Statement</label>
+                <input type="text" class="field-input" placeholder="What this is. (e.g., 'Launch Kaizen MVP')" value="Launch Kaizen MVP by Q1">
+            </div>
+
+            <div class="field-box">
+                <label class="field-label">Date</label>
+                <input type="date" class="field-input" value="2025-03-31">
+                <div class="field-hint">Due Date (for a Gate) or Evaluation Date (for an Experiment).</div>
+            </div>
+
+            <div class="field-box">
+                <label class="field-label">Criteria</label>
+                <div class="field-hint" style="margin-bottom: 12px;">The definition of done. How you know you've passed or failed.</div>
+                <div class="criteria-list">
+                    <div class="criteria-item">
+                        <span class="criteria-bullet"></span>
+                        <input type="text" class="criteria-input" value="MVP deployed to production">
+                    </div>
+                    <div class="criteria-item">
+                        <span class="criteria-bullet"></span>
+                        <input type="text" class="criteria-input" value="5 beta users onboarded successfully">
+                    </div>
+                    <div class="criteria-item">
+                        <span class="criteria-bullet"></span>
+                        <input type="text" class="criteria-input" placeholder="Add criterion...">
+                    </div>
+                </div>
+                <button class="add-criteria" onclick="addCriteria()">+ Add Criterion</button>
+            </div>
+
+            <div class="field-box lag-box" style="opacity: 0.5; pointer-events: none;">
+                <div class="lag-note">⚠️ Experiment Only</div>
+                <label class="field-label">Lag</label>
+                <input type="text" class="field-input" placeholder="How long you wait before judging the results." disabled>
+                <div class="field-hint">Time required after completion to observe results.</div>
+            </div>
+
+            <div class="allocation-box">
+                <label class="field-label">Allocation</label>
+                <div class="field-hint" style="margin-bottom: 12px;">Planned vs. Actual time (tracked weekly).</div>
+                <div class="allocation-inputs">
+                    <div class="allocation-input-group">
+                        <span class="allocation-label">Planned (hrs/week)</span>
+                        <input type="number" class="allocation-value" value="12" oninput="updateProgress()">
+                    </div>
+                    <div class="allocation-input-group">
+                        <span class="allocation-label">Actual (hrs/week)</span>
+                        <input type="number" class="allocation-value" value="8.5" oninput="updateProgress()">
+                    </div>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progressFill" style="width: 71%"></div>
+                    <div class="progress-text" id="progressText">8.5 / 12 hrs (71%)</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Experiment Contract -->
+        <div class="contract-card" id="experimentContract" style="display: none;">
+            <div class="contract-header">
+                <div class="icon-box experiment">
+                    🧪
+                </div>
+                <div class="status-box">
+                    <span class="status-label">Status</span>
+                    <select class="status-select">
+                        <option>Running</option>
+                        <option>Evaluating</option>
+                        <option>Keep</option>
+                        <option>Pivot</option>
+                        <option>Kill</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="field-box">
+                <label class="field-label">Statement</label>
+                <input type="text" class="field-input" placeholder="What this is. (e.g., 'Test paid ads for signup conversion')" value="Test if paid ads increase signups">
+            </div>
+
+            <div class="field-box">
+                <label class="field-label">Date</label>
+                <input type="date" class="field-input" value="2025-04-15">
+                <div class="field-hint">Due Date (for a Gate) or Evaluation Date (for an Experiment).</div>
+            </div>
+
+            <div class="field-box">
+                <label class="field-label">Criteria</label>
+                <div class="field-hint" style="margin-bottom: 12px;">2-3 anchor outcomes (pass/fail). How you know if it worked.</div>
+                <div class="criteria-list">
+                    <div class="criteria-item">
+                        <span class="criteria-bullet"></span>
+                        <input type="text" class="criteria-input" value="At least 50 new signups from ads">
+                    </div>
+                    <div class="criteria-item">
+                        <span class="criteria-bullet"></span>
+                        <input type="text" class="criteria-input" value="Cost per acquisition under $20">
+                    </div>
+                    <div class="criteria-item">
+                        <span class="criteria-bullet"></span>
+                        <input type="text" class="criteria-input" value="At least 20% conversion to paid">
+                    </div>
+                </div>
+                <button class="add-criteria" onclick="addCriteria()">+ Add Anchor Outcome</button>
+            </div>
+
+            <div class="field-box lag-box">
+                <div class="lag-note">⚠️ Experiment Only</div>
+                <label class="field-label">Lag</label>
+                <input type="text" class="field-input" placeholder="e.g., 4 weeks" value="4 weeks">
+                <div class="field-hint">How long you wait before judging the results.</div>
+            </div>
+
+            <div class="allocation-box">
+                <label class="field-label">Allocation</label>
+                <div class="field-hint" style="margin-bottom: 12px;">Planned vs. Actual time (tracked weekly).</div>
+                <div class="allocation-inputs">
+                    <div class="allocation-input-group">
+                        <span class="allocation-label">Planned (hrs/week)</span>
+                        <input type="number" class="allocation-value" value="6" oninput="updateProgress()">
+                    </div>
+                    <div class="allocation-input-group">
+                        <span class="allocation-label">Actual (hrs/week)</span>
+                        <input type="number" class="allocation-value" value="5.5" oninput="updateProgress()">
+                    </div>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill experiment" id="progressFill" style="width: 92%"></div>
+                    <div class="progress-text" id="progressText">5.5 / 6 hrs (92%)</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Get contract type from URL parameter
+        const urlParams = new URLSearchParams(window.location.search);
+        const contractType = urlParams.get('type') || 'gate';
+
+        // Show appropriate contract
+        if (contractType === 'experiment') {
+            document.getElementById('gateContract').style.display = 'none';
+            document.getElementById('experimentContract').style.display = 'block';
+        }
+
+        function updateProgress() {
+            const planned = parseFloat(document.querySelector('.allocation-value:nth-of-type(1)').value) || 0;
+            const actual = parseFloat(document.querySelector('.allocation-value:nth-of-type(2)').value) || 0;
+            const percentage = planned > 0 ? Math.round((actual / planned) * 100) : 0;
+
+            const progressFill = document.getElementById('progressFill');
+            const progressText = document.getElementById('progressText');
+
+            progressFill.style.width = Math.min(percentage, 100) + '%';
+            progressText.textContent = `${actual} / ${planned} hrs (${percentage}%)`;
+        }
+
+        function addCriteria() {
+            const criteriaList = event.target.previousElementSibling;
+            const newItem = document.createElement('div');
+            newItem.className = 'criteria-item';
+            newItem.innerHTML = `
+                <span class="criteria-bullet"></span>
+                <input type="text" class="criteria-input" placeholder="Add criterion...">
+            `;
+            criteriaList.appendChild(newItem);
+        }
+
+        function saveContract() {
+            alert('Contract saved!');
+            window.location.href = 'theme_view.html';
+        }
+
+        function cancelEdit() {
+            if (confirm('Discard changes?')) {
+                window.location.href = 'theme_view.html';
+            }
+        }
+    </script>
+</body>
+</html>

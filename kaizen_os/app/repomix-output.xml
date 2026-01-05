@@ -1,0 +1,5689 @@
+This file is a merged representation of a subset of the codebase, containing specifically included files, combined into a single document by Repomix.
+
+<file_summary>
+This section contains a summary of this file.
+
+<purpose>
+This file contains a packed representation of a subset of the repository's contents that is considered the most important context.
+It is designed to be easily consumable by AI systems for analysis, code review,
+or other automated processes.
+</purpose>
+
+<file_format>
+The content is organized as follows:
+1. This summary section
+2. Repository information
+3. Directory structure
+4. Repository files (if enabled)
+5. Multiple file entries, each consisting of:
+  - File path as an attribute
+  - Full contents of the file
+</file_format>
+
+<usage_guidelines>
+- This file should be treated as read-only. Any changes should be made to the
+  original repository files, not this packed version.
+- When processing this file, use the file path to distinguish
+  between different files in the repository.
+- Be aware that this file may contain sensitive information. Handle it with
+  the same level of security as you would the original repository.
+</usage_guidelines>
+
+<notes>
+- Some files may have been excluded based on .gitignore rules and Repomix's configuration
+- Binary files are not included in this packed representation. Please refer to the Repository Structure section for a complete list of file paths, including binary files
+- Only files matching these patterns are included: src/**/*.ts, prisma/*.prisma
+- Files matching patterns in .gitignore are excluded
+- Files matching default ignore patterns are excluded
+- Files are sorted by Git change count (files with more changes are at the bottom)
+</notes>
+
+</file_summary>
+
+<directory_structure>
+prisma/
+  schema.prisma
+src/
+  components/
+    contract/
+      index.ts
+    landing/
+      index.ts
+    theme/
+      index.ts
+    ui/
+      index.ts
+  domain/
+    entities.ts
+    index.ts
+    repositories.ts
+  hooks/
+    useCards.ts
+    useSeasons.ts
+    useUserSettings.ts
+  lib/
+    api.ts
+    db.ts
+    validation.ts
+  repositories/
+    prisma/
+      index.ts
+      mappers.ts
+      PrismaActionRepository.ts
+      PrismaTaskRepository.ts
+      PrismaThemeRepository.ts
+      PrismaVetoRepository.ts
+    index.ts
+  server/
+    routes/
+      agent.ts
+      cards.ts
+      events.ts
+      seasons.ts
+      themeAllocations.ts
+      users.ts
+    agentTools.ts
+    index.ts
+  services/
+    cardService.ts
+    catalog.ts
+    eventService.ts
+    seasonService.ts
+    userService.ts
+  types/
+    index.ts
+  vite-env.d.ts
+</directory_structure>
+
+<files>
+This section contains the contents of the repository's files.
+
+<file path="prisma/schema.prisma">
+// Kaizen OS Database Schema V4
+// PostgreSQL with Prisma ORM
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Enums
+enum TaskStatus {
+  in_progress
+  not_started
+  completed
+  backlog
+}
+
+enum UnitType {
+  THEME
+  ACTION_GATE
+  ACTION_EXPERIMENT
+  ACTION_ROUTINE
+  ACTION_OPS
+  TASK
+  VETO
+}
+
+enum EventType {
+  gate_started
+  gate_completed
+  gate_failed
+  experiment_started
+  experiment_completed
+  experiment_failed
+  experiment_pivoted
+  criteria_graded
+  routine_started
+  routine_replaced
+  ops_started
+  ops_completed
+  veto_added
+  veto_violated
+  time_logged
+  week_planned
+  season_started
+  season_ended
+  agent_mutation
+}
+
+// Users table (simplified for MVP)
+model User {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  name      String?
+  settings  Json     @default("{}")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  cards         Card[]
+  seasons       Season[]
+  events        Event[]
+  agentSessions AgentSession[]
+
+  @@map("users")
+}
+
+// Agent sessions for multi-turn chat
+model AgentSession {
+  id            String   @id @default(uuid())
+  claudeSession String   @unique @map("claude_session_id")
+  userId        Int      @map("user_id")
+  title         String?
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  user     User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages AgentMessage[]
+
+  @@index([userId])
+  @@map("agent_sessions")
+}
+
+model AgentMessage {
+  id             Int      @id @default(autoincrement())
+  sessionId      String   @map("session_id")
+  role           String
+  content        String   @db.Text
+  checkpointUuid String?  @map("checkpoint_uuid")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  session AgentSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@map("agent_messages")
+}
+
+
+// Cards - unified table for themes, gates, experiments, routines, ops, tasks, vetoes
+model Card {
+  id             Int        @id @default(autoincrement())
+  userId         Int        @map("user_id")
+  parentId       Int?       @map("parent_id")
+  title          String     @db.VarChar(255)
+  description    String?    @db.Text
+  targetDate     DateTime?  @map("target_date") @db.Date
+  completionDate DateTime?  @map("completion_date") @db.Date
+  startDate      DateTime?  @map("start_date") @db.Date
+  status         TaskStatus @default(not_started)
+  unitType       UnitType   @map("unit_type")
+  seasonId       Int?       @map("season_id")
+  lagWeeks       Int?       @map("lag_weeks")
+  criteria       String[]   @default([])
+  createdAt      DateTime   @default(now()) @map("created_at")
+  updatedAt      DateTime   @updatedAt @map("updated_at")
+
+  // Relations
+  user     User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parent   Card?   @relation("CardHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children Card[]  @relation("CardHierarchy")
+  season   Season? @relation(fields: [seasonId], references: [id], onDelete: SetNull)
+  events   Event[]
+
+  @@index([userId, unitType], name: "idx_cards_user_type")
+  @@index([userId, parentId], name: "idx_cards_user_parent")
+  @@index([userId, status], name: "idx_cards_user_status")
+  @@index([seasonId], name: "idx_cards_season")
+  @@index([targetDate], name: "idx_cards_target_date")
+  @@map("cards")
+}
+
+// Seasons - time-boxed planning periods
+model Season {
+  id               Int      @id @default(autoincrement())
+  userId           Int      @map("user_id")
+  name             String   @db.VarChar(100)
+  startDate        DateTime @map("start_date") @db.Date
+  durationWeeks    Int      @map("duration_weeks")
+  utilityRate      Float    @default(40.0) @map("utility_rate")
+  themeAllocations Json     @default("{}") @map("theme_allocations") // { [themeId]: allocation (0-1) }
+  isActive         Boolean  @default(false) @map("is_active")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  user  User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cards Card[]
+
+  @@index([userId], name: "idx_seasons_user")
+  @@index([userId], name: "idx_seasons_user_active")
+  @@map("seasons")
+}
+
+// Events - append-only event log for event sourcing
+// Also used for time tracking via 'time_logged' event type
+model Event {
+  id             BigInt    @id @default(autoincrement())
+  userId         Int       @map("user_id")
+  eventType      EventType @map("event_type")
+  cardId         Int?      @map("card_id")
+  payload        Json      @default("{}")
+  occurredAt     DateTime  @default(now()) @map("occurred_at")
+  idempotencyKey String?   @map("idempotency_key") @db.VarChar(255)
+
+  // Relations
+  user User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  card Card? @relation(fields: [cardId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, idempotencyKey], name: "idx_events_idempotency")
+  @@index([userId, eventType], name: "idx_events_user_type")
+  @@index([userId, cardId], name: "idx_events_user_card")
+  @@index([userId, occurredAt(sort: Desc)], name: "idx_events_user_time")
+  @@map("events")
+}
+</file>
+
+<file path="src/components/contract/index.ts">
+export { ContractForm } from './ContractForm'
+</file>
+
+<file path="src/components/landing/index.ts">
+export { DontDoList } from './DontDoList'
+export { ThemeCard } from './ThemeCard'
+export { SeasonSidebar } from './SeasonSidebar'
+</file>
+
+<file path="src/components/theme/index.ts">
+export { ActionRow } from './ActionRow'
+export { ActionCard } from './ActionCard'
+export { StackedCards } from './StackedCards'
+export { StackModal } from './StackModal'
+</file>
+
+<file path="src/components/ui/index.ts">
+export { Button } from './Button'
+export { Card, CardHeader, CardTitle, CardContent } from './Card'
+export { Input, Textarea, Select } from './Input'
+export { Badge, StatusBadge } from './Badge'
+</file>
+
+<file path="src/domain/entities.ts">
+// =============================================================================
+// COMMON TYPES
+// =============================================================================
+
+/** Unique identifier for domain entities */
+export type EntityId = number;
+
+/** Status applicable to all actionable items */
+export type Status = 'not_started' | 'in_progress' | 'completed' | 'backlog';
+
+/** Timestamps common to all entities */
+export interface Timestamps {
+  readonly createdAt: Date;
+  readonly updatedAt: Date;
+}
+
+// =============================================================================
+// THEME
+// =============================================================================
+
+/**
+ * Theme: A high-level area of focus (e.g., "Health", "Career", "Side Projects").
+ * Themes are top-level containers that hold Goals.
+ */
+export interface Theme extends Timestamps {
+  readonly id: EntityId;
+  readonly userId: EntityId;
+  title: string;
+  description: string | null;
+}
+
+/** Theme with computed aggregates for list views */
+export interface ThemeWithStats extends Theme {
+  /** Count of active (in_progress) actions under this theme */
+  readonly activeActionCount: number;
+  /** Condition score based on recent activity (0-100) */
+  readonly conditionScore?: number;
+}
+
+/** Theme with children for detail view */
+export interface ThemeWithChildren extends Theme {
+  readonly children: Action[];
+}
+
+// =============================================================================
+// GOAL (New Domain Concept)
+// =============================================================================
+
+/**
+ * Goal: A specific objective within a Theme.
+ * Goals contain Actions that work toward achieving the objective.
+ *
+ * NOTE: In V4 DB, Goals will be stored as `unitType = 'GOAL'` cards.
+ * This requires adding 'GOAL' to the UnitType enum in schema.sql.
+ */
+export interface Goal extends Timestamps {
+  readonly id: EntityId;
+  readonly userId: EntityId;
+  readonly themeId: EntityId;
+  title: string;
+  description: string | null;
+  targetDate: Date | null;
+  status: Status;
+}
+
+// =============================================================================
+// ACTIONS (Discriminated Union)
+// =============================================================================
+
+/** Base properties shared by all Action types */
+interface ActionBase extends Timestamps {
+  readonly id: EntityId;
+  readonly userId: EntityId;
+  readonly parentId: EntityId; // Theme ID (or Goal ID in future)
+  title: string;
+  description: string | null;
+  status: Status;
+  startDate: Date | null;
+  seasonId: EntityId | null;
+}
+
+/**
+ * Gate: A binary pass/fail checkpoint.
+ * Example: "Complete AWS certification exam"
+ */
+export interface GateAction extends ActionBase {
+  readonly actionType: 'gate';
+  targetDate: Date | null;
+  completionDate: Date | null;
+  /** Success criteria that must ALL pass for gate completion */
+  criteria: string[];
+}
+
+/**
+ * Experiment: A time-boxed hypothesis test with lag period for evaluation.
+ * Example: "Try intermittent fasting for 6 weeks"
+ */
+export interface ExperimentAction extends ActionBase {
+  readonly actionType: 'experiment';
+  /** Evaluation date (when to assess results) */
+  targetDate: Date | null;
+  completionDate: Date | null;
+  /** Weeks to wait before evaluating results (REQUIRED for experiments) */
+  lagWeeks: number;
+  /** Success criteria to evaluate after lag period */
+  criteria: string[];
+}
+
+/**
+ * Routine: An ongoing recurring activity with no end date.
+ * Example: "Daily meditation practice"
+ */
+export interface RoutineAction extends ActionBase {
+  readonly actionType: 'routine';
+  // Routines don't have targetDate or completionDate - they're ongoing
+}
+
+/**
+ * Ops: Operational/maintenance work that needs to get done.
+ * Example: "File quarterly taxes"
+ */
+export interface OpsAction extends ActionBase {
+  readonly actionType: 'ops';
+  targetDate: Date | null;
+  completionDate: Date | null;
+}
+
+/** Union type for all Action variants */
+export type Action = GateAction | ExperimentAction | RoutineAction | OpsAction;
+
+/** Action with children (tasks) for detail view */
+export interface ActionWithChildren {
+  action: Action;
+  children: Task[];
+}
+
+/** Type guard helpers */
+export const isGate = (a: Action): a is GateAction => a.actionType === 'gate';
+export const isExperiment = (a: Action): a is ExperimentAction => a.actionType === 'experiment';
+export const isRoutine = (a: Action): a is RoutineAction => a.actionType === 'routine';
+export const isOps = (a: Action): a is OpsAction => a.actionType === 'ops';
+
+// =============================================================================
+// TASK
+// =============================================================================
+
+/**
+ * Task: A concrete work item under an Action.
+ * Example: "Read chapter 3 of study guide" (under a Gate)
+ */
+export interface Task extends Timestamps {
+  readonly id: EntityId;
+  readonly userId: EntityId;
+  readonly actionId: EntityId;
+  title: string;
+  description: string | null;
+  status: Status;
+  targetDate: Date | null;
+  completionDate: Date | null;
+}
+
+// =============================================================================
+// VETO
+// =============================================================================
+
+/**
+ * Veto: A "Don't Do" constraint (global guardrail).
+ * Example: "No work emails after 8pm"
+ */
+export interface Veto extends Timestamps {
+  readonly id: EntityId;
+  readonly userId: EntityId;
+  title: string;
+  description: string | null;
+}
+</file>
+
+<file path="src/domain/index.ts">
+// Domain Layer - Public API
+export * from './entities';
+export * from './repositories';
+</file>
+
+<file path="src/domain/repositories.ts">
+import {
+  EntityId,
+  Theme,
+  ThemeWithStats,
+  ThemeWithChildren,
+  Goal,
+  Action,
+  ActionWithChildren,
+  Task,
+  Veto,
+  Status,
+} from './entities';
+
+// =============================================================================
+// INPUT TYPES
+// =============================================================================
+
+/** Input for creating a new Theme */
+export interface CreateThemeInput {
+  title: string;
+  description?: string;
+}
+
+/** Input for updating a Theme */
+export interface UpdateThemeInput {
+  title?: string;
+  description?: string | null;
+}
+
+/** Input for creating a new Goal */
+export interface CreateGoalInput {
+  themeId: EntityId;
+  title: string;
+  description?: string;
+  targetDate?: Date;
+  status?: Status;
+}
+
+/** Input for updating a Goal */
+export interface UpdateGoalInput {
+  title?: string;
+  description?: string | null;
+  targetDate?: Date | null;
+  status?: Status;
+}
+
+/** Base input for creating Actions */
+interface CreateActionInputBase {
+  parentId: EntityId; // Theme ID
+  title: string;
+  description?: string;
+  status?: Status;
+  startDate?: Date;
+  seasonId?: EntityId;
+}
+
+export interface CreateGateInput extends CreateActionInputBase {
+  actionType: 'gate';
+  targetDate?: Date;
+  criteria?: string[];
+}
+
+export interface CreateExperimentInput extends CreateActionInputBase {
+  actionType: 'experiment';
+  targetDate?: Date;
+  lagWeeks: number; // Required for experiments
+  criteria?: string[];
+}
+
+export interface CreateRoutineInput extends CreateActionInputBase {
+  actionType: 'routine';
+}
+
+export interface CreateOpsInput extends CreateActionInputBase {
+  actionType: 'ops';
+  targetDate?: Date;
+}
+
+export type CreateActionInput =
+  | CreateGateInput
+  | CreateExperimentInput
+  | CreateRoutineInput
+  | CreateOpsInput;
+
+/** Input for updating an Action */
+export interface UpdateActionInput {
+  title?: string;
+  description?: string | null;
+  status?: Status;
+  startDate?: Date | null;
+  targetDate?: Date | null;
+  completionDate?: Date | null;
+  seasonId?: EntityId | null;
+  lagWeeks?: number | null;
+  criteria?: string[];
+}
+
+/** Input for creating a Task */
+export interface CreateTaskInput {
+  actionId: EntityId;
+  title: string;
+  description?: string;
+  status?: Status;
+  targetDate?: Date;
+}
+
+/** Input for updating a Task */
+export interface UpdateTaskInput {
+  title?: string;
+  description?: string | null;
+  status?: Status;
+  targetDate?: Date | null;
+  completionDate?: Date | null;
+}
+
+/** Input for creating a Veto */
+export interface CreateVetoInput {
+  title: string;
+  description?: string;
+}
+
+/** Input for updating a Veto */
+export interface UpdateVetoInput {
+  title?: string;
+  description?: string | null;
+}
+
+// =============================================================================
+// REPOSITORY INTERFACES
+// =============================================================================
+
+/**
+ * ThemeRepository: Manages Theme entities.
+ */
+export interface ThemeRepository {
+  /** Get all themes for a user */
+  findAll(userId: EntityId): Promise<Theme[]>;
+
+  /** Get all themes with computed stats (action counts, condition scores) */
+  findAllWithStats(userId: EntityId): Promise<ThemeWithStats[]>;
+
+  /** Get a single theme by ID */
+  findById(userId: EntityId, id: EntityId): Promise<Theme | null>;
+
+  /** Get a single theme with its children (actions) */
+  findByIdWithChildren(userId: EntityId, id: EntityId): Promise<ThemeWithChildren | null>;
+
+  /** Create a new theme */
+  create(userId: EntityId, input: CreateThemeInput): Promise<Theme>;
+
+  /** Update an existing theme */
+  update(userId: EntityId, id: EntityId, input: UpdateThemeInput): Promise<Theme>;
+
+  /** Delete a theme (fails if has children) */
+  delete(userId: EntityId, id: EntityId): Promise<void>;
+
+  /** Get hierarchy path from root to a theme */
+  getHierarchy(userId: EntityId, id: EntityId): Promise<Theme[]>;
+}
+
+/**
+ * GoalRepository: Manages Goal entities.
+ * NOTE: Goals are a new domain concept. In V4, they map to cards with unitType='GOAL'.
+ */
+export interface GoalRepository {
+  /** Get all goals under a theme */
+  findByTheme(userId: EntityId, themeId: EntityId): Promise<Goal[]>;
+
+  /** Get a single goal by ID */
+  findById(userId: EntityId, id: EntityId): Promise<Goal | null>;
+
+  /** Create a new goal */
+  create(userId: EntityId, input: CreateGoalInput): Promise<Goal>;
+
+  /** Update an existing goal */
+  update(userId: EntityId, id: EntityId, input: UpdateGoalInput): Promise<Goal>;
+
+  /** Delete a goal (fails if has children) */
+  delete(userId: EntityId, id: EntityId): Promise<void>;
+}
+
+/**
+ * ActionRepository: Manages Action entities (Gate, Experiment, Routine, Ops).
+ */
+export interface ActionRepository {
+  /** Get all actions under a parent (Theme or Goal) */
+  findByParent(userId: EntityId, parentId: EntityId): Promise<Action[]>;
+
+  /** Get all actions of a specific type under a parent */
+  findByParentAndType<T extends Action['actionType']>(
+    userId: EntityId,
+    parentId: EntityId,
+    actionType: T
+  ): Promise<Extract<Action, { actionType: T }>[]>;
+
+  /** Get all active (in_progress) actions for a user */
+  findActive(userId: EntityId): Promise<Action[]>;
+
+  /** Get backlog actions for a parent */
+  findBacklog(userId: EntityId, parentId: EntityId): Promise<Action[]>;
+
+  /** Get a single action by ID */
+  findById(userId: EntityId, id: EntityId): Promise<Action | null>;
+
+  /** Get a single action with its children (tasks) */
+  findByIdWithChildren(userId: EntityId, id: EntityId): Promise<ActionWithChildren | null>;
+
+  /** Create a new action */
+  create(userId: EntityId, input: CreateActionInput): Promise<Action>;
+
+  /** Update an existing action */
+  update(userId: EntityId, id: EntityId, input: UpdateActionInput): Promise<Action>;
+
+  /** Delete an action (fails if has children) */
+  delete(userId: EntityId, id: EntityId): Promise<void>;
+
+  /** Get hierarchy path from root to an action */
+  getHierarchy(userId: EntityId, id: EntityId): Promise<(Theme | Action)[]>;
+
+  /** Get children filtered by status */
+  findChildrenByStatus(userId: EntityId, actionId: EntityId, status: Status): Promise<Task[]>;
+}
+
+/**
+ * TaskRepository: Manages Task entities.
+ */
+export interface TaskRepository {
+  /** Get all tasks under an action */
+  findByAction(userId: EntityId, actionId: EntityId): Promise<Task[]>;
+
+  /** Get tasks by status under an action */
+  findByActionAndStatus(
+    userId: EntityId,
+    actionId: EntityId,
+    status: Status
+  ): Promise<Task[]>;
+
+  /** Get a single task by ID */
+  findById(userId: EntityId, id: EntityId): Promise<Task | null>;
+
+  /** Create a new task */
+  create(userId: EntityId, input: CreateTaskInput): Promise<Task>;
+
+  /** Update an existing task */
+  update(userId: EntityId, id: EntityId, input: UpdateTaskInput): Promise<Task>;
+
+  /** Delete a task */
+  delete(userId: EntityId, id: EntityId): Promise<void>;
+
+  /** Get hierarchy path from root to a task */
+  getHierarchy(userId: EntityId, id: EntityId): Promise<(Theme | Action | Task)[]>;
+}
+
+/**
+ * VetoRepository: Manages Veto entities (global guardrails).
+ */
+export interface VetoRepository {
+  /** Get all vetoes for a user */
+  findAll(userId: EntityId): Promise<Veto[]>;
+
+  /** Get a single veto by ID */
+  findById(userId: EntityId, id: EntityId): Promise<Veto | null>;
+
+  /** Create a new veto */
+  create(userId: EntityId, input: CreateVetoInput): Promise<Veto>;
+
+  /** Update an existing veto */
+  update(userId: EntityId, id: EntityId, input: UpdateVetoInput): Promise<Veto>;
+
+  /** Delete a veto */
+  delete(userId: EntityId, id: EntityId): Promise<void>;
+}
+
+// =============================================================================
+// UNIT OF WORK (Optional - for transaction support)
+// =============================================================================
+
+/**
+ * UnitOfWork: Provides transactional access to all repositories.
+ * Use when operations need to span multiple repositories atomically.
+ */
+export interface UnitOfWork {
+  readonly themes: ThemeRepository;
+  readonly goals: GoalRepository;
+  readonly actions: ActionRepository;
+  readonly tasks: TaskRepository;
+  readonly vetoes: VetoRepository;
+
+  /** Execute a function within a transaction */
+  transaction<T>(fn: (uow: UnitOfWork) => Promise<T>): Promise<T>;
+}
+</file>
+
+<file path="src/hooks/useCards.ts">
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { api, CreateCardInput, UpdateCardInput } from '../lib/api'
+
+// Theme queries
+export function useThemes() {
+  return useQuery({
+    queryKey: ['themes'],
+    queryFn: () => api.getThemes(),
+  })
+}
+
+// Card queries
+export function useCard(id: number) {
+  return useQuery({
+    queryKey: ['card', id],
+    queryFn: () => api.getCard(id),
+    enabled: !!id,
+  })
+}
+
+export function useCardChildren(id: number, type?: string, status?: string) {
+  return useQuery({
+    queryKey: ['cardChildren', id, type, status],
+    queryFn: () => api.getCardChildren(id, type, status),
+    enabled: !!id,
+  })
+}
+
+export function useCardHierarchy(id: number) {
+  return useQuery({
+    queryKey: ['cardHierarchy', id],
+    queryFn: () => api.getCardHierarchy(id),
+    enabled: !!id,
+  })
+}
+
+export function useCardsByType(type: string) {
+  return useQuery({
+    queryKey: ['cards', type],
+    queryFn: () => api.getCardsByType(type),
+    enabled: !!type,
+  })
+}
+
+// Global Vetoes (Don't-Do List)
+export function useGlobalVetoes() {
+  return useQuery({
+    queryKey: ['globalVetoes'],
+    queryFn: () => api.getGlobalVetoes(),
+  })
+}
+
+// Backlog
+export function useBacklog(themeId: number) {
+  return useQuery({
+    queryKey: ['backlog', themeId],
+    queryFn: () => api.getBacklog(themeId),
+    enabled: !!themeId,
+  })
+}
+
+// Active Actions
+export function useActiveActions() {
+  return useQuery({
+    queryKey: ['activeActions'],
+    queryFn: () => api.getActiveActions(),
+  })
+}
+
+// Theme Hours (Property 6: Time Aggregation)
+export function useAllThemeHours(seasonId?: number) {
+  return useQuery({
+    queryKey: ['themeHours', seasonId],
+    queryFn: () => api.getAllThemeHours(seasonId),
+  })
+}
+
+export function useThemeHours(themeId: number, seasonId?: number) {
+  return useQuery({
+    queryKey: ['themeHours', themeId, seasonId],
+    queryFn: () => api.getThemeHours(themeId, seasonId),
+    enabled: !!themeId,
+  })
+}
+
+// All Theme Conditions
+export function useAllConditions() {
+  return useQuery({
+    queryKey: ['conditions'],
+    queryFn: () => api.getAllConditions(),
+  })
+}
+
+// Card mutations
+export function useCreateCard() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (data: CreateCardInput) => api.createCard(data),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['themes'] })
+      queryClient.invalidateQueries({ queryKey: ['cards'] })
+      queryClient.invalidateQueries({ queryKey: ['activeActions'] })
+      queryClient.invalidateQueries({ queryKey: ['globalVetoes'] })
+      if (variables.parentId) {
+        queryClient.invalidateQueries({ queryKey: ['cardChildren', variables.parentId] })
+        queryClient.invalidateQueries({ queryKey: ['backlog', variables.parentId] })
+      }
+    },
+  })
+}
+
+export function useUpdateCard() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ id, data }: { id: number; data: UpdateCardInput }) =>
+      api.updateCard(id, data),
+    onSuccess: (result, { id }) => {
+      queryClient.invalidateQueries({ queryKey: ['card', id] })
+      queryClient.invalidateQueries({ queryKey: ['themes'] })
+      queryClient.invalidateQueries({ queryKey: ['cards'] })
+      queryClient.invalidateQueries({ queryKey: ['activeActions'] })
+      if (result.parentId) {
+        queryClient.invalidateQueries({ queryKey: ['cardChildren', result.parentId] })
+        queryClient.invalidateQueries({ queryKey: ['backlog', result.parentId] })
+      }
+    },
+  })
+}
+
+export function useDeleteCard() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (id: number) => api.deleteCard(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['themes'] })
+      queryClient.invalidateQueries({ queryKey: ['cards'] })
+      queryClient.invalidateQueries({ queryKey: ['activeActions'] })
+      queryClient.invalidateQueries({ queryKey: ['globalVetoes'] })
+      // Note: We can't invalidate specific wipStatus/backlog without knowing parentId
+      // The component should handle this by passing parentId to the mutation
+    },
+  })
+}
+</file>
+
+<file path="src/hooks/useSeasons.ts">
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { api, CreateSeasonInput } from '../lib/api'
+
+export function useSeasons() {
+  return useQuery({
+    queryKey: ['seasons'],
+    queryFn: () => api.getSeasons(),
+  })
+}
+
+export function useActiveSeason() {
+  return useQuery({
+    queryKey: ['activeSeason'],
+    queryFn: () => api.getActiveSeason(),
+  })
+}
+
+export function useSeason(id: number) {
+  return useQuery({
+    queryKey: ['season', id],
+    queryFn: () => api.getSeason(id),
+    enabled: !!id,
+  })
+}
+
+export function useCreateSeason() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (data: CreateSeasonInput) => api.createSeason(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['seasons'] })
+    },
+  })
+}
+
+export function useActivateSeason() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (id: number) => api.activateSeason(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['seasons'] })
+      queryClient.invalidateQueries({ queryKey: ['activeSeason'] })
+    },
+  })
+}
+
+export function useUpdateSeason() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ id, data }: { id: number; data: Partial<CreateSeasonInput> }) =>
+      api.updateSeason(id, data),
+    onSuccess: (_, { id }) => {
+      queryClient.invalidateQueries({ queryKey: ['season', id] })
+      queryClient.invalidateQueries({ queryKey: ['seasons'] })
+      queryClient.invalidateQueries({ queryKey: ['activeSeason'] })
+    },
+  })
+}
+</file>
+
+<file path="src/hooks/useUserSettings.ts">
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { api, UserSettings } from '../lib/api'
+
+export function useUserSettings() {
+  return useQuery({
+    queryKey: ['userSettings'],
+    queryFn: () => api.getUserSettings(),
+  })
+}
+
+export function useUpdateUserSettings() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (settings: Partial<UserSettings>) => api.updateUserSettings(settings),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['userSettings'] })
+    },
+  })
+}
+</file>
+
+<file path="src/lib/api.ts">
+const API_BASE = '/api'
+
+interface ApiError {
+  error: {
+    code: string
+    message: string
+    details?: Record<string, string[]>
+  }
+}
+
+class ApiClient {
+  private async request<T>(
+    endpoint: string,
+    options: RequestInit = {}
+  ): Promise<T> {
+    const url = `${API_BASE}${endpoint}`
+    
+    const response = await fetch(url, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        ...options.headers,
+      },
+    })
+
+    if (!response.ok) {
+      const error: ApiError = await response.json().catch(() => ({
+        error: { code: 'UNKNOWN', message: 'An error occurred' },
+      }))
+      throw new Error(error.error.message)
+    }
+
+    // Handle 204 No Content
+    if (response.status === 204) {
+      return undefined as T
+    }
+
+    return response.json()
+  }
+
+  // Cards (v4 API)
+  async getThemes() {
+    return this.request<CardWithActionCount[]>('/cards')
+  }
+
+  async getCard(id: number) {
+    return this.request<CardWithChildren>(`/cards/${id}`)
+  }
+
+  async getCardChildren(id: number, type?: string, status?: string) {
+    const params = new URLSearchParams()
+    if (type) params.set('type', type)
+    if (status) params.set('status', status)
+    const query = params.toString()
+    return this.request<Card[]>(`/cards/${id}/children${query ? `?${query}` : ''}`)
+  }
+
+  async getCardHierarchy(id: number) {
+    return this.request<Card[]>(`/cards/${id}/hierarchy`)
+  }
+
+  async getCardsByType(type: string) {
+    return this.request<Card[]>(`/cards?type=${type}`)
+  }
+
+  async getActiveActions() {
+    return this.request<Card[]>('/cards/active-actions')
+  }
+
+  async getGlobalVetoes() {
+    return this.request<Card[]>('/cards/vetoes')
+  }
+
+  async getBacklog(themeId: number) {
+    return this.request<Card[]>(`/cards/themes/${themeId}/backlog`)
+  }
+
+
+  async createCard(data: CreateCardInput) {
+    return this.request<Card>('/cards', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    })
+  }
+
+  async updateCard(id: number, data: UpdateCardInput) {
+    return this.request<Card>(`/cards/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    })
+  }
+
+  async deleteCard(id: number) {
+    return this.request<void>(`/cards/${id}`, {
+      method: 'DELETE',
+    })
+  }
+
+  // Seasons
+  async getSeasons() {
+    return this.request<Season[]>('/seasons')
+  }
+
+  async getActiveSeason() {
+    return this.request<Season | null>('/seasons/active')
+  }
+
+  async getSeason(id: number) {
+    return this.request<Season>(`/seasons/${id}`)
+  }
+
+  async createSeason(data: CreateSeasonInput) {
+    return this.request<Season>('/seasons', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    })
+  }
+
+  async activateSeason(id: number) {
+    return this.request<Season>(`/seasons/${id}/activate`, {
+      method: 'PUT',
+    })
+  }
+
+  async updateSeason(id: number, data: Partial<CreateSeasonInput>) {
+    return this.request<Season>(`/seasons/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    })
+  }
+
+
+  // Events
+  async logEvent(data: LogEventInput) {
+    return this.request<Event>('/events', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    })
+  }
+
+  async getEvents(params?: { cardId?: number; type?: string; limit?: number }) {
+    const searchParams = new URLSearchParams()
+    if (params?.cardId) searchParams.set('cardId', String(params.cardId))
+    if (params?.type) searchParams.set('type', params.type)
+    if (params?.limit) searchParams.set('limit', String(params.limit))
+    
+    const query = searchParams.toString()
+    return this.request<Event[]>(`/events${query ? `?${query}` : ''}`)
+  }
+
+  // Condition Scores
+  async getAllConditions() {
+    return this.request<Record<number, { conditionScore: number; lastActivity: string | null }>>('/events/conditions')
+  }
+
+  async getThemeCondition(themeId: number) {
+    return this.request<{ themeId: number; conditionScore: number; lastActivity: string | null }>(`/events/conditions/${themeId}`)
+  }
+
+  // Theme Hours (Property 6: Time Aggregation)
+  async getAllThemeHours(seasonId?: number) {
+    const query = seasonId ? `?seasonId=${seasonId}` : ''
+    return this.request<Record<number, number>>(`/events/theme-hours${query}`)
+  }
+
+  async getThemeHours(themeId: number, seasonId?: number) {
+    const query = seasonId ? `?seasonId=${seasonId}` : ''
+    return this.request<{ themeId: number; actualHours: number }>(`/events/theme-hours/${themeId}${query}`)
+  }
+
+  // Time Logging (v4)
+  async logTime(cardId: number, minutes: number, date?: string) {
+    return this.request<Event>('/events/time', {
+      method: 'POST',
+      body: JSON.stringify({ cardId, minutes, date }),
+    })
+  }
+
+  // Season Grading (v4) - grades all criteria for an action at once
+  async gradeSeasonCriteria(cardId: number, gradingType: 'mid_season' | 'end_season', results: { criterion: string; passed: boolean }[], notes?: string) {
+    return this.request<Event>('/events/criteria-grade', {
+      method: 'POST',
+      body: JSON.stringify({ cardId, gradingType, results, notes }),
+    })
+  }
+
+  // Veto Management (v4)
+  async logVetoViolation(vetoId: number, reason?: string) {
+    return this.request<Event>('/events/veto-violated', {
+      method: 'POST',
+      body: JSON.stringify({ vetoId, reason }),
+    })
+  }
+
+  // Legacy guardrail methods
+  async tripGuardrail(guardrailId: number, reason?: string) {
+    return this.logVetoViolation(guardrailId, reason)
+  }
+
+  async restoreGuardrail(guardrailId: number) {
+    // In v4, vetoes don't have a restore concept - they're just tracked
+    return this.request<Event>('/events', {
+      method: 'POST',
+      body: JSON.stringify({ eventType: 'veto_added', cardId: guardrailId }),
+    })
+  }
+
+  // Action Lifecycle (v4)
+  async logActionStarted(cardId: number, actionType: 'gate' | 'experiment' | 'routine' | 'ops') {
+    return this.request<Event>(`/events/${actionType}-started`, {
+      method: 'POST',
+      body: JSON.stringify({ cardId }),
+    })
+  }
+
+  async logActionCompleted(cardId: number, actionType: 'gate' | 'experiment' | 'ops') {
+    return this.request<Event>(`/events/${actionType}-completed`, {
+      method: 'POST',
+      body: JSON.stringify({ cardId }),
+    })
+  }
+
+  // Theme Allocations
+  async getSeasonAllocations(seasonId: number) {
+    return this.request<ThemeAllocation[]>(`/allocations/season/${seasonId}`)
+  }
+
+  async getThemeAllocation(seasonId: number, themeId: number) {
+    return this.request<ThemeAllocation>(`/allocations/season/${seasonId}/theme/${themeId}`)
+  }
+
+  async setThemeAllocation(seasonId: number, themeId: number, allocation: number) {
+    return this.request<ThemeAllocation>(`/allocations/season/${seasonId}/theme/${themeId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ allocation }),
+    })
+  }
+
+  // Users & Settings
+  async getUserSettings() {
+    return this.request<UserSettings>('/users/settings')
+  }
+
+  async updateUserSettings(settings: Partial<UserSettings>) {
+    return this.request<UserSettings>('/users/settings', {
+      method: 'PUT',
+      body: JSON.stringify(settings),
+    })
+  }
+}
+
+
+// Types (v4)
+export type UnitType = 'THEME' | 'ACTION_GATE' | 'ACTION_EXPERIMENT' | 'ACTION_ROUTINE' | 'ACTION_OPS' | 'TASK' | 'VETO'
+export type TaskStatus = 'in_progress' | 'not_started' | 'completed' | 'backlog'
+
+export interface UserSettings {
+  maxThemes: number
+  maxGatesPerTheme: number
+  maxExperimentsPerTheme: number
+  maxRoutinesPerTheme: number
+  maxOpsPerTheme: number
+  minCriteriaPerExperiment: number
+  minCriteriaPerGate: number
+  defaultSeasonWeeks: number
+  defaultLagWeeks: number
+  agentBuiltinTools: string[]
+  agentAllowedTools: string[]
+  agentAllowBash: boolean
+  agentPermissionMode: 'default' | 'acceptEdits' | 'bypassPermissions'
+  agentSystemPrompt: string
+}
+
+export interface Card {
+  id: number
+  userId: number
+  parentId: number | null
+  title: string
+  description: string | null
+  targetDate: string | null
+  completionDate: string | null
+  startDate: string | null
+  status: TaskStatus
+  unitType: UnitType
+  seasonId: number | null
+  lagWeeks: number | null
+  criteria: string[]
+  createdAt: string
+  updatedAt: string
+}
+
+export interface CardWithActionCount extends Card {
+  actionCount: number
+}
+
+export interface CardWithChildren extends Card {
+  children: Card[]
+}
+
+export interface WipTypeStatus {
+  active: number
+  max: number
+  canAdd: boolean
+}
+
+export interface Season {
+  id: number
+  userId: number
+  name: string
+  startDate: string
+  durationWeeks: number
+  endDate: string
+  utilityRate: number
+  totalHours: number
+  themeAllocations: Record<string, number> // { [themeId]: allocation (0-1) }
+  isActive: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+export interface Event {
+  id: string
+  userId: number
+  eventType: string
+  cardId: number | null
+  payload: Record<string, unknown>
+  occurredAt: string
+  idempotencyKey: string | null
+}
+
+export interface CreateCardInput {
+  title: string
+  description?: string
+  unitType: string
+  status?: string
+  parentId?: number
+  seasonId?: number
+  targetDate?: string
+  startDate?: string
+  lagWeeks?: number
+  criteria?: string[]
+}
+
+export interface UpdateCardInput {
+  title?: string
+  description?: string
+  status?: string
+  targetDate?: string | null
+  startDate?: string | null
+  completionDate?: string | null
+  seasonId?: number | null
+  lagWeeks?: number | null
+  criteria?: string[]
+}
+
+export interface CreateSeasonInput {
+  name: string
+  startDate: string
+  durationWeeks: number
+  utilityRate?: number
+  themeAllocations?: Record<string, number>
+}
+
+export interface LogEventInput {
+  eventType: string
+  cardId?: number
+  payload?: Record<string, unknown>
+  idempotencyKey?: string
+}
+
+export interface ThemeAllocation {
+  id?: number
+  userId?: number
+  seasonId: number
+  themeId: number
+  allocation: number
+  createdAt?: string
+  updatedAt?: string
+}
+
+export const api = new ApiClient()
+
+// Agent Session Types
+export interface AgentSession {
+  id: string
+  title: string | null
+  createdAt: string
+  updatedAt: string
+  messages: { content: string }[]
+}
+
+export interface AgentSessionWithMessages {
+  id: string
+  title: string | null
+  claudeSession: string
+  messages: AgentMessage[]
+}
+
+export interface AgentMessage {
+  id: number
+  role: 'user' | 'assistant'
+  content: string
+  createdAt: string
+}
+</file>
+
+<file path="src/lib/db.ts">
+import { PrismaClient } from '@prisma/client'
+
+// Prevent multiple instances of Prisma Client in development
+declare global {
+  var prisma: PrismaClient | undefined
+}
+
+export const prisma = globalThis.prisma || new PrismaClient({
+  log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
+})
+
+if (process.env.NODE_ENV !== 'production') {
+  globalThis.prisma = prisma
+}
+
+export default prisma
+</file>
+
+<file path="src/lib/validation.ts">
+import { TaskStatus, UnitType } from '@prisma/client'
+
+export interface ValidationError {
+  field: string
+  message: string
+}
+
+export interface ValidationResult {
+  valid: boolean
+  errors: ValidationError[]
+}
+
+const VALID_STATUSES: TaskStatus[] = ['in_progress', 'not_started', 'completed', 'backlog']
+const VALID_UNIT_TYPES: UnitType[] = ['THEME', 'ACTION_GATE', 'ACTION_EXPERIMENT', 'ACTION_ROUTINE', 'ACTION_OPS', 'TASK', 'VETO']
+
+/**
+ * Validate that a title is not empty or whitespace-only
+ */
+export function validateTitle(title: string | undefined | null): ValidationResult {
+  const errors: ValidationError[] = []
+
+  if (title === undefined || title === null) {
+    errors.push({ field: 'title', message: 'Title is required' })
+  } else if (title.trim() === '') {
+    errors.push({ field: 'title', message: 'Title cannot be empty or whitespace only' })
+  } else if (title.length > 255) {
+    errors.push({ field: 'title', message: 'Title must be 255 characters or less' })
+  }
+
+  return { valid: errors.length === 0, errors }
+}
+
+/**
+ * Validate unit type
+ */
+export function validateUnitType(unitType: string | undefined | null): ValidationResult {
+  const errors: ValidationError[] = []
+
+  if (!unitType) {
+    errors.push({ field: 'unitType', message: 'Unit type is required' })
+  } else if (!VALID_UNIT_TYPES.includes(unitType as UnitType)) {
+    errors.push({
+      field: 'unitType',
+      message: `Invalid unit type: must be one of ${VALID_UNIT_TYPES.join(', ')}`,
+    })
+  }
+
+  return { valid: errors.length === 0, errors }
+}
+
+/**
+ * Validate status
+ */
+export function validateStatus(status: string | undefined | null): ValidationResult {
+  const errors: ValidationError[] = []
+
+  if (status && !VALID_STATUSES.includes(status as TaskStatus)) {
+    errors.push({
+      field: 'status',
+      message: `Invalid status: must be one of ${VALID_STATUSES.join(', ')}`,
+    })
+  }
+
+  return { valid: errors.length === 0, errors }
+}
+
+/**
+ * Validate date format
+ */
+export function validateDate(date: unknown, fieldName: string): ValidationResult {
+  const errors: ValidationError[] = []
+
+  if (date !== undefined && date !== null) {
+    const parsed = new Date(date as string | number | Date)
+    if (isNaN(parsed.getTime())) {
+      errors.push({ field: fieldName, message: `Invalid date format for ${fieldName}` })
+    }
+  }
+
+  return { valid: errors.length === 0, errors }
+}
+
+/**
+ * Validate positive integer
+ */
+export function validatePositiveInt(value: unknown, fieldName: string): ValidationResult {
+  const errors: ValidationError[] = []
+
+  if (value !== undefined && value !== null) {
+    const num = Number(value)
+    if (!Number.isInteger(num) || num <= 0) {
+      errors.push({ field: fieldName, message: `${fieldName} must be a positive integer` })
+    }
+  }
+
+  return { valid: errors.length === 0, errors }
+}
+
+/**
+ * Validate card creation input
+ */
+export function validateCreateCard(data: {
+  title?: string
+  unitType?: string
+  status?: string
+  targetDate?: unknown
+  startDate?: unknown
+}): ValidationResult {
+  const allErrors: ValidationError[] = []
+
+  const titleResult = validateTitle(data.title)
+  const unitTypeResult = validateUnitType(data.unitType)
+  const statusResult = validateStatus(data.status)
+  const targetDateResult = validateDate(data.targetDate, 'targetDate')
+  const startDateResult = validateDate(data.startDate, 'startDate')
+
+  allErrors.push(
+    ...titleResult.errors,
+    ...unitTypeResult.errors,
+    ...statusResult.errors,
+    ...targetDateResult.errors,
+    ...startDateResult.errors
+  )
+
+  return { valid: allErrors.length === 0, errors: allErrors }
+}
+
+/**
+ * Validate card update input
+ */
+export function validateUpdateCard(data: {
+  title?: string
+  status?: string
+  targetDate?: unknown
+  startDate?: unknown
+  completionDate?: unknown
+}): ValidationResult {
+  const allErrors: ValidationError[] = []
+
+  // Title is optional on update, but if provided must be valid
+  if (data.title !== undefined) {
+    const titleResult = validateTitle(data.title)
+    allErrors.push(...titleResult.errors)
+  }
+
+  const statusResult = validateStatus(data.status)
+  const targetDateResult = validateDate(data.targetDate, 'targetDate')
+  const startDateResult = validateDate(data.startDate, 'startDate')
+  const completionDateResult = validateDate(data.completionDate, 'completionDate')
+
+  allErrors.push(
+    ...statusResult.errors,
+    ...targetDateResult.errors,
+    ...startDateResult.errors,
+    ...completionDateResult.errors
+  )
+
+  return { valid: allErrors.length === 0, errors: allErrors }
+}
+
+/**
+ * Validate season creation input
+ */
+export function validateCreateSeason(data: {
+  name?: string
+  startDate?: unknown
+  durationWeeks?: unknown
+  utilityRate?: unknown
+}): ValidationResult {
+  const allErrors: ValidationError[] = []
+
+  // Name validation
+  if (!data.name || data.name.trim() === '') {
+    allErrors.push({ field: 'name', message: 'Season name is required' })
+  } else if (data.name.length > 100) {
+    allErrors.push({ field: 'name', message: 'Season name must be 100 characters or less' })
+  }
+
+  // Start date validation
+  if (!data.startDate) {
+    allErrors.push({ field: 'startDate', message: 'Start date is required' })
+  } else {
+    const dateResult = validateDate(data.startDate, 'startDate')
+    allErrors.push(...dateResult.errors)
+  }
+
+  // Duration weeks validation
+  if (!data.durationWeeks) {
+    allErrors.push({ field: 'durationWeeks', message: 'Duration weeks is required' })
+  } else {
+    const durationResult = validatePositiveInt(data.durationWeeks, 'durationWeeks')
+    allErrors.push(...durationResult.errors)
+  }
+
+  // Utility rate validation (optional)
+  if (data.utilityRate !== undefined && data.utilityRate !== null) {
+    const rate = Number(data.utilityRate)
+    if (isNaN(rate) || rate < 0 || rate > 168) {
+      allErrors.push({ field: 'utilityRate', message: 'Utility rate must be between 0 and 168 hours per week' })
+    }
+  }
+
+  return { valid: allErrors.length === 0, errors: allErrors }
+}
+
+/**
+ * Format validation errors for API response
+ */
+export function formatValidationErrors(errors: ValidationError[]): Record<string, string[]> {
+  const grouped: Record<string, string[]> = {}
+  
+  for (const error of errors) {
+    if (!grouped[error.field]) {
+      grouped[error.field] = []
+    }
+    grouped[error.field].push(error.message)
+  }
+
+  return grouped
+}
+</file>
+
+<file path="src/repositories/prisma/index.ts">
+export { PrismaThemeRepository } from './PrismaThemeRepository';
+export { PrismaActionRepository } from './PrismaActionRepository';
+export { PrismaTaskRepository } from './PrismaTaskRepository';
+export { PrismaVetoRepository } from './PrismaVetoRepository';
+export * from './mappers';
+</file>
+
+<file path="src/repositories/prisma/mappers.ts">
+/**
+ * Mappers: Convert Prisma Card models to Domain entities
+ */
+import { Card as PrismaCard, UnitType } from '@prisma/client';
+import {
+  Theme,
+  Goal,
+  Action,
+  GateAction,
+  ExperimentAction,
+  RoutineAction,
+  OpsAction,
+  Task,
+  Veto,
+} from '../../domain/entities';
+
+// Default lag weeks for experiments if not set in DB
+const DEFAULT_LAG_WEEKS = 6;
+
+export function toTheme(card: PrismaCard): Theme {
+  return {
+    id: card.id,
+    userId: card.userId,
+    title: card.title,
+    description: card.description,
+    createdAt: card.createdAt,
+    updatedAt: card.updatedAt,
+  };
+}
+
+export function toGoal(card: PrismaCard): Goal {
+  if (!card.parentId) {
+    throw new Error(`Goal card ${card.id} must have a parentId (themeId)`);
+  }
+  return {
+    id: card.id,
+    userId: card.userId,
+    themeId: card.parentId,
+    title: card.title,
+    description: card.description,
+    targetDate: card.targetDate,
+    status: card.status,
+    createdAt: card.createdAt,
+    updatedAt: card.updatedAt,
+  };
+}
+
+export function toAction(card: PrismaCard): Action {
+  if (!card.parentId) {
+    throw new Error(`Action card ${card.id} must have a parentId`);
+  }
+
+  const base = {
+    id: card.id,
+    userId: card.userId,
+    parentId: card.parentId,
+    title: card.title,
+    description: card.description,
+    status: card.status,
+    startDate: card.startDate,
+    seasonId: card.seasonId,
+    createdAt: card.createdAt,
+    updatedAt: card.updatedAt,
+  };
+
+  switch (card.unitType) {
+    case 'ACTION_GATE':
+      return {
+        ...base,
+        actionType: 'gate',
+        targetDate: card.targetDate,
+        completionDate: card.completionDate,
+        criteria: card.criteria || [],
+      } as GateAction;
+
+    case 'ACTION_EXPERIMENT':
+      return {
+        ...base,
+        actionType: 'experiment',
+        targetDate: card.targetDate,
+        completionDate: card.completionDate,
+        lagWeeks: card.lagWeeks ?? DEFAULT_LAG_WEEKS,
+        criteria: card.criteria || [],
+      } as ExperimentAction;
+
+    case 'ACTION_ROUTINE':
+      return {
+        ...base,
+        actionType: 'routine',
+      } as RoutineAction;
+
+    case 'ACTION_OPS':
+      return {
+        ...base,
+        actionType: 'ops',
+        targetDate: card.targetDate,
+        completionDate: card.completionDate,
+      } as OpsAction;
+
+    default:
+      throw new Error(`Unknown action type: ${card.unitType}`);
+  }
+}
+
+export function toTask(card: PrismaCard): Task {
+  if (!card.parentId) {
+    throw new Error(`Task card ${card.id} must have a parentId (actionId)`);
+  }
+  return {
+    id: card.id,
+    userId: card.userId,
+    actionId: card.parentId,
+    title: card.title,
+    description: card.description,
+    status: card.status,
+    targetDate: card.targetDate,
+    completionDate: card.completionDate,
+    createdAt: card.createdAt,
+    updatedAt: card.updatedAt,
+  };
+}
+
+export function toVeto(card: PrismaCard): Veto {
+  return {
+    id: card.id,
+    userId: card.userId,
+    title: card.title,
+    description: card.description,
+    createdAt: card.createdAt,
+    updatedAt: card.updatedAt,
+  };
+}
+
+/** Map action type to DB unit type */
+export function actionTypeToUnitType(actionType: Action['actionType']): UnitType {
+  switch (actionType) {
+    case 'gate': return 'ACTION_GATE';
+    case 'experiment': return 'ACTION_EXPERIMENT';
+    case 'routine': return 'ACTION_ROUTINE';
+    case 'ops': return 'ACTION_OPS';
+  }
+}
+
+/** Check if unit type is an action type */
+export function isActionUnitType(unitType: UnitType): boolean {
+  return ['ACTION_GATE', 'ACTION_EXPERIMENT', 'ACTION_ROUTINE', 'ACTION_OPS'].includes(unitType);
+}
+
+export const ACTION_UNIT_TYPES: UnitType[] = [
+  'ACTION_GATE',
+  'ACTION_EXPERIMENT',
+  'ACTION_ROUTINE',
+  'ACTION_OPS',
+];
+</file>
+
+<file path="src/repositories/prisma/PrismaActionRepository.ts">
+import { PrismaClient } from '@prisma/client';
+import { Action, ActionWithChildren, EntityId, Theme, Task, Status } from '../../domain/entities';
+import { ActionRepository, CreateActionInput, UpdateActionInput } from '../../domain/repositories';
+import { toAction, toTask, toTheme, actionTypeToUnitType, ACTION_UNIT_TYPES } from './mappers';
+
+export class PrismaActionRepository implements ActionRepository {
+  constructor(private prisma: PrismaClient) {}
+
+  async findByParent(userId: EntityId, parentId: EntityId): Promise<Action[]> {
+    const cards = await this.prisma.card.findMany({
+      where: {
+        userId,
+        parentId,
+        unitType: { in: ACTION_UNIT_TYPES },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+    return cards.map(toAction);
+  }
+
+  async findByParentAndType<T extends Action['actionType']>(
+    userId: EntityId,
+    parentId: EntityId,
+    actionType: T
+  ): Promise<Extract<Action, { actionType: T }>[]> {
+    const unitType = actionTypeToUnitType(actionType);
+    const cards = await this.prisma.card.findMany({
+      where: { userId, parentId, unitType },
+      orderBy: { createdAt: 'asc' },
+    });
+    return cards.map(toAction) as Extract<Action, { actionType: T }>[];
+  }
+
+  async findActive(userId: EntityId): Promise<Action[]> {
+    const cards = await this.prisma.card.findMany({
+      where: {
+        userId,
+        unitType: { in: ACTION_UNIT_TYPES },
+        status: 'in_progress',
+      },
+      orderBy: { updatedAt: 'desc' },
+    });
+    return cards.map(toAction);
+  }
+
+  async findBacklog(userId: EntityId, parentId: EntityId): Promise<Action[]> {
+    const cards = await this.prisma.card.findMany({
+      where: {
+        userId,
+        parentId,
+        unitType: { in: ACTION_UNIT_TYPES },
+        status: 'backlog',
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+    return cards.map(toAction);
+  }
+
+  async findById(userId: EntityId, id: EntityId): Promise<Action | null> {
+    const card = await this.prisma.card.findFirst({
+      where: {
+        id,
+        userId,
+        unitType: { in: ACTION_UNIT_TYPES },
+      },
+    });
+    return card ? toAction(card) : null;
+  }
+
+  async findByIdWithChildren(userId: EntityId, id: EntityId): Promise<ActionWithChildren | null> {
+    const card = await this.prisma.card.findFirst({
+      where: {
+        id,
+        userId,
+        unitType: { in: ACTION_UNIT_TYPES },
+      },
+      include: {
+        children: {
+          where: { unitType: 'TASK' },
+          orderBy: { createdAt: 'asc' },
+        },
+      },
+    });
+    if (!card) return null;
+    return {
+      action: toAction(card),
+      children: card.children.map(toTask),
+    };
+  }
+
+  async create(userId: EntityId, input: CreateActionInput): Promise<Action> {
+    if (!input.title?.trim()) {
+      throw new Error('Title is required');
+    }
+
+    const unitType = actionTypeToUnitType(input.actionType);
+
+    const card = await this.prisma.card.create({
+      data: {
+        userId,
+        parentId: input.parentId,
+        title: input.title.trim(),
+        description: input.description,
+        unitType,
+        status: input.status || 'not_started',
+        startDate: input.startDate,
+        seasonId: input.seasonId,
+        targetDate: 'targetDate' in input ? input.targetDate : undefined,
+        lagWeeks: input.actionType === 'experiment' ? input.lagWeeks : undefined,
+        criteria: 'criteria' in input ? input.criteria : [],
+      },
+    });
+    return toAction(card);
+  }
+
+  async update(userId: EntityId, id: EntityId, input: UpdateActionInput): Promise<Action> {
+    const existing = await this.findById(userId, id);
+    if (!existing) {
+      throw new Error('Action not found');
+    }
+    if (input.title !== undefined && !input.title?.trim()) {
+      throw new Error('Title cannot be empty');
+    }
+
+    const card = await this.prisma.card.update({
+      where: { id },
+      data: {
+        ...(input.title !== undefined && { title: input.title.trim() }),
+        ...(input.description !== undefined && { description: input.description }),
+        ...(input.status !== undefined && { status: input.status }),
+        ...(input.startDate !== undefined && { startDate: input.startDate }),
+        ...(input.targetDate !== undefined && { targetDate: input.targetDate }),
+        ...(input.completionDate !== undefined && { completionDate: input.completionDate }),
+        ...(input.seasonId !== undefined && { seasonId: input.seasonId }),
+        ...(input.lagWeeks !== undefined && { lagWeeks: input.lagWeeks }),
+        ...(input.criteria !== undefined && { criteria: input.criteria }),
+      },
+    });
+    return toAction(card);
+  }
+
+  async delete(userId: EntityId, id: EntityId): Promise<void> {
+    const existing = await this.findById(userId, id);
+    if (!existing) {
+      throw new Error('Action not found');
+    }
+    const children = await this.prisma.card.count({
+      where: { parentId: id, userId },
+    });
+    if (children > 0) {
+      throw new Error('Cannot delete action with children');
+    }
+    await this.prisma.card.delete({ where: { id } });
+  }
+
+  async getHierarchy(userId: EntityId, id: EntityId): Promise<(Theme | Action)[]> {
+    const action = await this.findById(userId, id);
+    if (!action) return [];
+
+    const path: (Theme | Action)[] = [action];
+    
+    // Get parent theme
+    if (action.parentId) {
+      const parent = await this.prisma.card.findFirst({
+        where: { id: action.parentId, userId, unitType: 'THEME' },
+      });
+      if (parent) {
+        path.unshift(toTheme(parent));
+      }
+    }
+    
+    return path;
+  }
+
+  async findChildrenByStatus(userId: EntityId, actionId: EntityId, status: Status): Promise<Task[]> {
+    const cards = await this.prisma.card.findMany({
+      where: { userId, parentId: actionId, unitType: 'TASK', status },
+      orderBy: { createdAt: 'asc' },
+    });
+    return cards.map(toTask);
+  }
+}
+</file>
+
+<file path="src/repositories/prisma/PrismaTaskRepository.ts">
+import { PrismaClient } from '@prisma/client';
+import { Task, EntityId, Status, Theme, Action } from '../../domain/entities';
+import { TaskRepository, CreateTaskInput, UpdateTaskInput } from '../../domain/repositories';
+import { toTask, toTheme, toAction, ACTION_UNIT_TYPES } from './mappers';
+
+export class PrismaTaskRepository implements TaskRepository {
+  constructor(private prisma: PrismaClient) {}
+
+  async findByAction(userId: EntityId, actionId: EntityId): Promise<Task[]> {
+    const cards = await this.prisma.card.findMany({
+      where: { userId, parentId: actionId, unitType: 'TASK' },
+      orderBy: { createdAt: 'asc' },
+    });
+    return cards.map(toTask);
+  }
+
+  async findByActionAndStatus(
+    userId: EntityId,
+    actionId: EntityId,
+    status: Status
+  ): Promise<Task[]> {
+    const cards = await this.prisma.card.findMany({
+      where: { userId, parentId: actionId, unitType: 'TASK', status },
+      orderBy: { createdAt: 'asc' },
+    });
+    return cards.map(toTask);
+  }
+
+  async findById(userId: EntityId, id: EntityId): Promise<Task | null> {
+    const card = await this.prisma.card.findFirst({
+      where: { id, userId, unitType: 'TASK' },
+    });
+    return card ? toTask(card) : null;
+  }
+
+  async create(userId: EntityId, input: CreateTaskInput): Promise<Task> {
+    if (!input.title?.trim()) {
+      throw new Error('Title is required');
+    }
+    const card = await this.prisma.card.create({
+      data: {
+        userId,
+        parentId: input.actionId,
+        title: input.title.trim(),
+        description: input.description,
+        unitType: 'TASK',
+        status: input.status || 'not_started',
+        targetDate: input.targetDate,
+      },
+    });
+    return toTask(card);
+  }
+
+  async update(userId: EntityId, id: EntityId, input: UpdateTaskInput): Promise<Task> {
+    const existing = await this.findById(userId, id);
+    if (!existing) {
+      throw new Error('Task not found');
+    }
+    if (input.title !== undefined && !input.title?.trim()) {
+      throw new Error('Title cannot be empty');
+    }
+    const card = await this.prisma.card.update({
+      where: { id },
+      data: {
+        ...(input.title !== undefined && { title: input.title.trim() }),
+        ...(input.description !== undefined && { description: input.description }),
+        ...(input.status !== undefined && { status: input.status }),
+        ...(input.targetDate !== undefined && { targetDate: input.targetDate }),
+        ...(input.completionDate !== undefined && { completionDate: input.completionDate }),
+      },
+    });
+    return toTask(card);
+  }
+
+  async delete(userId: EntityId, id: EntityId): Promise<void> {
+    const existing = await this.findById(userId, id);
+    if (!existing) {
+      throw new Error('Task not found');
+    }
+    await this.prisma.card.delete({ where: { id } });
+  }
+
+  async getHierarchy(userId: EntityId, id: EntityId): Promise<(Theme | Action | Task)[]> {
+    const task = await this.findById(userId, id);
+    if (!task) return [];
+
+    const path: (Theme | Action | Task)[] = [task];
+    
+    // Get parent action
+    if (task.actionId) {
+      const actionCard = await this.prisma.card.findFirst({
+        where: { id: task.actionId, userId, unitType: { in: ACTION_UNIT_TYPES } },
+      });
+      if (actionCard) {
+        const action = toAction(actionCard);
+        path.unshift(action);
+        
+        // Get grandparent theme
+        if (action.parentId) {
+          const themeCard = await this.prisma.card.findFirst({
+            where: { id: action.parentId, userId, unitType: 'THEME' },
+          });
+          if (themeCard) {
+            path.unshift(toTheme(themeCard));
+          }
+        }
+      }
+    }
+    
+    return path;
+  }
+}
+</file>
+
+<file path="src/repositories/prisma/PrismaThemeRepository.ts">
+import { PrismaClient } from '@prisma/client';
+import { Theme, ThemeWithStats, ThemeWithChildren, EntityId } from '../../domain/entities';
+import { ThemeRepository, CreateThemeInput, UpdateThemeInput } from '../../domain/repositories';
+import { toTheme, toAction, ACTION_UNIT_TYPES } from './mappers';
+
+export class PrismaThemeRepository implements ThemeRepository {
+  constructor(private prisma: PrismaClient) {}
+
+  async findAll(userId: EntityId): Promise<Theme[]> {
+    const cards = await this.prisma.card.findMany({
+      where: { userId, unitType: 'THEME' },
+      orderBy: { createdAt: 'desc' },
+    });
+    return cards.map(toTheme);
+  }
+
+  async findAllWithStats(userId: EntityId): Promise<ThemeWithStats[]> {
+    const themes = await this.prisma.card.findMany({
+      where: { userId, unitType: 'THEME' },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    // Get action counts for all themes in one query
+    const actionCounts = await this.prisma.card.groupBy({
+      by: ['parentId'],
+      where: {
+        userId,
+        unitType: { in: ACTION_UNIT_TYPES },
+        status: 'in_progress',
+        parentId: { in: themes.map(t => t.id) },
+      },
+      _count: { id: true },
+    });
+
+    const countMap = new Map(actionCounts.map(c => [c.parentId, c._count.id]));
+
+    return themes.map(card => ({
+      ...toTheme(card),
+      activeActionCount: countMap.get(card.id) || 0,
+    }));
+  }
+
+  async findById(userId: EntityId, id: EntityId): Promise<Theme | null> {
+    const card = await this.prisma.card.findFirst({
+      where: { id, userId, unitType: 'THEME' },
+    });
+    return card ? toTheme(card) : null;
+  }
+
+  async findByIdWithChildren(userId: EntityId, id: EntityId): Promise<ThemeWithChildren | null> {
+    const card = await this.prisma.card.findFirst({
+      where: { id, userId, unitType: 'THEME' },
+      include: {
+        children: {
+          where: { unitType: { in: ACTION_UNIT_TYPES } },
+          orderBy: { createdAt: 'asc' },
+        },
+      },
+    });
+    if (!card) return null;
+    return {
+      ...toTheme(card),
+      children: card.children.map(toAction),
+    };
+  }
+
+  async create(userId: EntityId, input: CreateThemeInput): Promise<Theme> {
+    if (!input.title?.trim()) {
+      throw new Error('Title is required');
+    }
+    const card = await this.prisma.card.create({
+      data: {
+        userId,
+        title: input.title.trim(),
+        description: input.description,
+        unitType: 'THEME',
+        status: 'not_started',
+      },
+    });
+    return toTheme(card);
+  }
+
+  async update(userId: EntityId, id: EntityId, input: UpdateThemeInput): Promise<Theme> {
+    const existing = await this.findById(userId, id);
+    if (!existing) {
+      throw new Error('Theme not found');
+    }
+    if (input.title !== undefined && !input.title?.trim()) {
+      throw new Error('Title cannot be empty');
+    }
+    const card = await this.prisma.card.update({
+      where: { id },
+      data: {
+        ...(input.title !== undefined && { title: input.title.trim() }),
+        ...(input.description !== undefined && { description: input.description }),
+      },
+    });
+    return toTheme(card);
+  }
+
+  async delete(userId: EntityId, id: EntityId): Promise<void> {
+    const existing = await this.findById(userId, id);
+    if (!existing) {
+      throw new Error('Theme not found');
+    }
+    const children = await this.prisma.card.count({
+      where: { parentId: id, userId },
+    });
+    if (children > 0) {
+      throw new Error('Cannot delete theme with children');
+    }
+    await this.prisma.card.delete({ where: { id } });
+  }
+
+  async getHierarchy(userId: EntityId, id: EntityId): Promise<Theme[]> {
+    const theme = await this.findById(userId, id);
+    return theme ? [theme] : [];
+  }
+}
+</file>
+
+<file path="src/repositories/prisma/PrismaVetoRepository.ts">
+import { PrismaClient } from '@prisma/client';
+import { Veto, EntityId } from '../../domain/entities';
+import { VetoRepository, CreateVetoInput, UpdateVetoInput } from '../../domain/repositories';
+import { toVeto } from './mappers';
+
+export class PrismaVetoRepository implements VetoRepository {
+  constructor(private prisma: PrismaClient) {}
+
+  async findAll(userId: EntityId): Promise<Veto[]> {
+    const cards = await this.prisma.card.findMany({
+      where: { userId, unitType: 'VETO', parentId: null },
+      orderBy: { createdAt: 'asc' },
+    });
+    return cards.map(toVeto);
+  }
+
+  async findById(userId: EntityId, id: EntityId): Promise<Veto | null> {
+    const card = await this.prisma.card.findFirst({
+      where: { id, userId, unitType: 'VETO' },
+    });
+    return card ? toVeto(card) : null;
+  }
+
+  async create(userId: EntityId, input: CreateVetoInput): Promise<Veto> {
+    if (!input.title?.trim()) {
+      throw new Error('Title is required');
+    }
+    const card = await this.prisma.card.create({
+      data: {
+        userId,
+        title: input.title.trim(),
+        description: input.description,
+        unitType: 'VETO',
+        status: 'not_started',
+      },
+    });
+    return toVeto(card);
+  }
+
+  async update(userId: EntityId, id: EntityId, input: UpdateVetoInput): Promise<Veto> {
+    const existing = await this.findById(userId, id);
+    if (!existing) {
+      throw new Error('Veto not found');
+    }
+    if (input.title !== undefined && !input.title?.trim()) {
+      throw new Error('Title cannot be empty');
+    }
+    const card = await this.prisma.card.update({
+      where: { id },
+      data: {
+        ...(input.title !== undefined && { title: input.title.trim() }),
+        ...(input.description !== undefined && { description: input.description }),
+      },
+    });
+    return toVeto(card);
+  }
+
+  async delete(userId: EntityId, id: EntityId): Promise<void> {
+    const existing = await this.findById(userId, id);
+    if (!existing) {
+      throw new Error('Veto not found');
+    }
+    await this.prisma.card.delete({ where: { id } });
+  }
+}
+</file>
+
+<file path="src/repositories/index.ts">
+// Repository implementations
+export * from './prisma';
+</file>
+
+<file path="src/server/routes/agent.ts">
+import express, { Request } from 'express'
+import { query } from '@anthropic-ai/claude-agent-sdk'
+import { createAgentTools, ToolContext } from '../agentTools'
+import { userService } from '../../services/userService'
+import prisma from '../../lib/db'
+
+const router = express.Router()
+const DEFAULT_USER_ID = 1
+
+// Extend Request to include user
+interface AuthRequest extends Request {
+  user?: { id: number }
+}
+
+// Type for mutation payload
+interface MutationPayload {
+  operation: 'create' | 'update' | 'delete'
+  agentSessionId: string
+  checkpointUuid?: string
+  before?: Record<string, unknown>
+  after?: Record<string, unknown>
+}
+
+// Type for message content block
+interface ContentBlock {
+  type: string
+  text?: string
+}
+
+const DEFAULT_AGENT_SYSTEM_PROMPT = `You are the Kaizen OS Agent, a personal productivity assistant.
+
+Use the kaizen-db tools to interact with the database:
+- list_cards: Query cards with filters
+- get_card: Get a single card with children
+- create_card: Create new cards (themes, actions, tasks, etc.)
+- update_card: Update card properties
+- delete_card: Delete cards (no children allowed)
+- get_active_season: Get current season
+- get_recent_events: View recent activity
+
+NEVER use bash for database operations. All database access must go through the kaizen-db tools.
+
+Card hierarchy: THEME → ACTION_GATE/EXPERIMENT/ROUTINE/OPS → TASK/CRITERIA
+Themes can also have VETO children directly.`
+
+router.post('/chat', async (req: AuthRequest, res) => {
+  const { message, sessionId: clientSessionId } = req.body
+  const userId = req.user?.id || DEFAULT_USER_ID
+
+  if (!message) {
+    return res.status(400).json({ error: 'Message is required' })
+  }
+
+  const settings = await userService.getSettings(userId)
+
+  let agentSession = clientSessionId
+    ? await prisma.agentSession.findUnique({ where: { id: clientSessionId } })
+    : null
+
+  res.setHeader('Content-Type', 'text/event-stream')
+  res.setHeader('Cache-Control', 'no-cache')
+  res.setHeader('Connection', 'keep-alive')
+
+  let claudeSessionId: string | undefined
+  let checkpointUuid: string | undefined
+
+  async function* messageGenerator(): AsyncGenerator<{ type: 'user'; message: { role: 'user'; content: string } }> {
+    yield {
+      type: 'user' as const,
+      message: { role: 'user' as const, content: message },
+    }
+  }
+
+  const toolContext: ToolContext = {
+    userId,
+    sessionId: agentSession?.id || 'pending',
+    checkpointUuid: undefined,
+    allowedTools: settings.agentAllowedTools.map(t => t.replace('mcp__kaizen-db__', '')),
+  }
+
+  const allowedTools = [
+    ...settings.agentBuiltinTools,
+    ...settings.agentAllowedTools,
+  ]
+
+  const disallowedTools = settings.agentAllowBash ? [] : ['Bash']
+
+  try {
+    const agentStream = query({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      prompt: messageGenerator() as any,
+      options: {
+        resume: agentSession?.claudeSession,
+        mcpServers: {
+          'kaizen-db': createAgentTools(toolContext),
+        },
+        allowedTools,
+        disallowedTools,
+        permissionMode: settings.agentPermissionMode,
+        ...(settings.agentPermissionMode === 'bypassPermissions' && {
+          allowDangerouslySkipPermissions: true,
+        }),
+        systemPrompt: settings.agentSystemPrompt || DEFAULT_AGENT_SYSTEM_PROMPT,
+      },
+    })
+
+    for await (const msg of agentStream) {
+      if (msg.type === 'system' && msg.subtype === 'init') {
+        claudeSessionId = msg.session_id
+
+        if (!agentSession && claudeSessionId) {
+          agentSession = await prisma.agentSession.create({
+            data: {
+              claudeSession: claudeSessionId,
+              userId,
+              title: message,
+            },
+          })
+          toolContext.sessionId = agentSession.id
+          res.write(`data: ${JSON.stringify({ type: 'session', sessionId: agentSession.id })}\n\n`)
+        }
+      }
+
+      if (msg.type === 'user' && msg.uuid) {
+        checkpointUuid = msg.uuid
+        toolContext.checkpointUuid = checkpointUuid
+        res.write(`data: ${JSON.stringify({ type: 'checkpoint', uuid: checkpointUuid })}\n\n`)
+      }
+
+      res.write(`data: ${JSON.stringify(msg)}\n\n`)
+
+      if (msg.type === 'assistant' && agentSession) {
+        const content = msg.message.content as ContentBlock[]
+        const textContent = content
+          .filter((c) => c.type === 'text')
+          .map((c) => c.text || '')
+          .join('\n')
+
+        if (textContent) {
+          await prisma.agentMessage.create({
+            data: {
+              sessionId: agentSession.id,
+              role: 'assistant',
+              content: textContent,
+              checkpointUuid,
+            },
+          })
+        }
+      }
+    }
+
+    if (agentSession) {
+      await prisma.agentMessage.create({
+        data: {
+          sessionId: agentSession.id,
+          role: 'user',
+          content: message,
+          checkpointUuid,
+        },
+      })
+    }
+
+    res.write('data: [DONE]\n\n')
+    res.end()
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    console.error('Agent error:', error)
+    if (!res.headersSent) {
+      res.status(500).json({ error: errorMessage })
+    } else {
+      res.write(`data: ${JSON.stringify({ type: 'error', error: errorMessage })}\n\n`)
+      res.end()
+    }
+  }
+})
+
+
+router.post('/rollback', async (req: AuthRequest, res) => {
+  const { sessionId, checkpointUuid } = req.body
+  const userId = req.user?.id || DEFAULT_USER_ID
+
+  if (!sessionId) {
+    return res.status(400).json({ error: 'sessionId required' })
+  }
+
+  try {
+    const mutations = await prisma.event.findMany({
+      where: {
+        userId,
+        eventType: 'agent_mutation',
+      },
+      orderBy: { occurredAt: 'desc' },
+    })
+
+    const toRollback: typeof mutations = []
+    let foundCheckpoint = false
+
+    for (const mutation of mutations) {
+      const payload = mutation.payload as unknown as MutationPayload
+      if (payload.agentSessionId !== sessionId) continue
+
+      if (checkpointUuid) {
+        if (payload.checkpointUuid === checkpointUuid) {
+          foundCheckpoint = true
+          break
+        }
+      }
+
+      toRollback.push(mutation)
+    }
+
+    const results: Array<{ id: number | null; operation: string; error?: string; preservedId?: boolean }> = []
+    
+    for (const mutation of toRollback) {
+      const payload = mutation.payload as unknown as MutationPayload
+
+      try {
+        if (payload.operation === 'create') {
+          await prisma.card.deleteMany({
+            where: { id: mutation.cardId!, userId },
+          })
+          results.push({ id: mutation.cardId, operation: 'delete (undo create)' })
+        } else if (payload.operation === 'update' && payload.before) {
+          const before = payload.before as Record<string, unknown>
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          const { id, createdAt, updatedAt, ...restoreData } = before
+          await prisma.card.updateMany({
+            where: { id: mutation.cardId!, userId },
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            data: restoreData as any,
+          })
+          results.push({ id: mutation.cardId, operation: 'restore (undo update)' })
+        } else if (payload.operation === 'delete' && payload.before) {
+          const before = payload.before as Record<string, unknown>
+          await prisma.$executeRaw`
+            INSERT INTO cards (id, user_id, parent_id, title, description, target_date,
+              completion_date, start_date, status, unit_type, season_id, lag_weeks,
+              passed, evaluated_at, created_at, updated_at)
+            VALUES (${before.id}, ${before.userId}, ${before.parentId}, ${before.title},
+              ${before.description}, ${before.targetDate}, ${before.completionDate},
+              ${before.startDate}, ${before.status}::"TaskStatus", ${before.unitType}::"UnitType",
+              ${before.seasonId}, ${before.lagWeeks}, ${before.passed}, ${before.evaluatedAt},
+              ${before.createdAt}, NOW())
+            ON CONFLICT (id) DO NOTHING
+          `
+          results.push({ id: mutation.cardId, operation: 'recreate (undo delete)', preservedId: true })
+        }
+      } catch (err: unknown) {
+        const errorMessage = err instanceof Error ? err.message : 'Unknown error'
+        results.push({ id: mutation.cardId, operation: payload.operation, error: errorMessage })
+      }
+    }
+
+    res.json({
+      rolledBack: toRollback.length,
+      results,
+      checkpointFound: checkpointUuid ? foundCheckpoint : null,
+    })
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    res.status(500).json({ error: errorMessage })
+  }
+})
+
+router.get('/sessions', async (req: AuthRequest, res) => {
+  const userId = req.user?.id || DEFAULT_USER_ID
+
+  const sessions = await prisma.agentSession.findMany({
+    where: { userId },
+    orderBy: { updatedAt: 'desc' },
+    include: {
+      messages: {
+        orderBy: { createdAt: 'asc' },
+        take: 1,
+      },
+    },
+  })
+
+  res.json(sessions)
+})
+
+router.get('/sessions/:sessionId/messages', async (req: AuthRequest, res) => {
+  const userId = req.user?.id || DEFAULT_USER_ID
+  const { sessionId } = req.params
+
+  const session = await prisma.agentSession.findFirst({
+    where: { id: sessionId, userId },
+    include: {
+      messages: {
+        orderBy: { createdAt: 'asc' },
+      },
+    },
+  })
+
+  if (!session) {
+    return res.status(404).json({ error: 'Session not found' })
+  }
+
+  res.json(session)
+})
+
+router.delete('/sessions/:sessionId', async (req: AuthRequest, res) => {
+  const userId = req.user?.id || DEFAULT_USER_ID
+  const { sessionId } = req.params
+
+  const session = await prisma.agentSession.findFirst({
+    where: { id: sessionId, userId },
+  })
+
+  if (!session) {
+    return res.status(404).json({ error: 'Session not found' })
+  }
+
+  await prisma.agentSession.delete({
+    where: { id: sessionId },
+  })
+
+  res.status(204).send()
+})
+
+export default router
+</file>
+
+<file path="src/server/routes/cards.ts">
+import { Router, Request, Response, NextFunction } from 'express'
+import { UnitType, TaskStatus } from '@prisma/client'
+import { catalog } from '../../services/catalog'
+import { validateCreateCard, validateUpdateCard, formatValidationErrors } from '../../lib/validation'
+import {
+  Theme,
+  ThemeWithStats,
+  Action,
+  Task,
+  Veto,
+} from '../../domain/entities'
+import { actionTypeToUnitType, isActionUnitType } from '../../repositories/prisma/mappers'
+
+const router = Router()
+
+// For MVP, use a fixed user ID (would come from auth in production)
+const DEFAULT_USER_ID = 1
+
+// Helper to create API errors
+function createError(statusCode: number, code: string, message: string, details?: Record<string, string[]>) {
+  const error = new Error(message) as Error & { statusCode: number; code: string; details?: Record<string, string[]> }
+  error.statusCode = statusCode
+  error.code = code
+  if (details) error.details = details
+  return error
+}
+
+// =============================================================================
+// CARD RESPONSE TYPES (unified API shape)
+// =============================================================================
+
+interface CardResponse {
+  id: number
+  userId: number
+  parentId: number | null
+  title: string
+  description: string | null
+  unitType: UnitType
+  status: TaskStatus
+  targetDate: Date | null
+  completionDate: Date | null
+  startDate: Date | null
+  seasonId: number | null
+  lagWeeks: number | null
+  criteria: string[]
+  createdAt: Date
+  updatedAt: Date
+  // Optional computed fields
+  actionCount?: number
+  children?: CardResponse[]
+}
+
+// =============================================================================
+// MAPPERS: Domain entities -> Card API response
+// =============================================================================
+
+function themeToCard(theme: Theme | ThemeWithStats): CardResponse {
+  return {
+    id: theme.id,
+    userId: theme.userId,
+    parentId: null,
+    title: theme.title,
+    description: theme.description,
+    unitType: 'THEME',
+    status: 'not_started',
+    targetDate: null,
+    completionDate: null,
+    startDate: null,
+    seasonId: null,
+    lagWeeks: null,
+    criteria: [],
+    createdAt: theme.createdAt,
+    updatedAt: theme.updatedAt,
+    actionCount: 'activeActionCount' in theme ? theme.activeActionCount : undefined,
+  }
+}
+
+function actionToCard(action: Action): CardResponse {
+  const unitType = actionTypeToUnitType(action.actionType)
+  return {
+    id: action.id,
+    userId: action.userId,
+    parentId: action.parentId,
+    title: action.title,
+    description: action.description,
+    unitType,
+    status: action.status as TaskStatus,
+    targetDate: 'targetDate' in action ? action.targetDate : null,
+    completionDate: 'completionDate' in action ? action.completionDate : null,
+    startDate: action.startDate,
+    seasonId: action.seasonId,
+    lagWeeks: action.actionType === 'experiment' ? action.lagWeeks : null,
+    criteria: 'criteria' in action ? action.criteria : [],
+    createdAt: action.createdAt,
+    updatedAt: action.updatedAt,
+  }
+}
+
+function taskToCard(task: Task): CardResponse {
+  return {
+    id: task.id,
+    userId: task.userId,
+    parentId: task.actionId,
+    title: task.title,
+    description: task.description,
+    unitType: 'TASK',
+    status: task.status as TaskStatus,
+    targetDate: task.targetDate,
+    completionDate: task.completionDate,
+    startDate: null,
+    seasonId: null,
+    lagWeeks: null,
+    criteria: [],
+    createdAt: task.createdAt,
+    updatedAt: task.updatedAt,
+  }
+}
+
+function vetoToCard(veto: Veto): CardResponse {
+  return {
+    id: veto.id,
+    userId: veto.userId,
+    parentId: null,
+    title: veto.title,
+    description: veto.description,
+    unitType: 'VETO',
+    status: 'not_started',
+    targetDate: null,
+    completionDate: null,
+    startDate: null,
+    seasonId: null,
+    lagWeeks: null,
+    criteria: [],
+    createdAt: veto.createdAt,
+    updatedAt: veto.updatedAt,
+  }
+}
+
+// =============================================================================
+// ROUTES
+// =============================================================================
+
+// GET /api/cards - List cards (with optional type filter)
+router.get('/', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { type } = req.query
+    
+    if (type) {
+      const unitType = type as UnitType
+      let cards: CardResponse[]
+      
+      if (unitType === 'THEME') {
+        const themes = await catalog.themes.findAll(DEFAULT_USER_ID)
+        cards = themes.map(themeToCard)
+      } else if (isActionUnitType(unitType)) {
+        const actions = await catalog.actions.findActive(DEFAULT_USER_ID)
+        cards = actions
+          .filter(a => actionTypeToUnitType(a.actionType) === unitType)
+          .map(actionToCard)
+      } else if (unitType === 'TASK') {
+        // Tasks require a parent - return empty for now
+        cards = []
+      } else if (unitType === 'VETO') {
+        const vetoes = await catalog.vetoes.findAll(DEFAULT_USER_ID)
+        cards = vetoes.map(vetoToCard)
+      } else {
+        cards = []
+      }
+      
+      return res.json(cards)
+    }
+
+    // Return themes with stats by default
+    const themes = await catalog.themes.findAllWithStats(DEFAULT_USER_ID)
+    res.json(themes.map(themeToCard))
+  } catch (error) {
+    next(error)
+  }
+})
+
+// GET /api/cards/vetoes - Get global vetoes (Don't-Do List)
+router.get('/vetoes', async (_req: Request, res: Response, next: NextFunction) => {
+  try {
+    const vetoes = await catalog.vetoes.findAll(DEFAULT_USER_ID)
+    res.json(vetoes.map(vetoToCard))
+  } catch (error) {
+    next(error)
+  }
+})
+
+// GET /api/cards/active-actions - Get active actions
+router.get('/active-actions', async (_req: Request, res: Response, next: NextFunction) => {
+  try {
+    const actions = await catalog.actions.findActive(DEFAULT_USER_ID)
+    res.json(actions.map(actionToCard))
+  } catch (error) {
+    next(error)
+  }
+})
+
+// GET /api/cards/themes/:id/backlog - Get backlog items for a theme
+router.get('/themes/:id/backlog', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const id = parseInt(req.params.id, 10)
+    if (isNaN(id)) {
+      throw createError(400, 'INVALID_ID', 'Invalid theme ID')
+    }
+
+    const actions = await catalog.actions.findBacklog(DEFAULT_USER_ID, id)
+    res.json(actions.map(actionToCard))
+  } catch (error) {
+    next(error)
+  }
+})
+
+
+// GET /api/cards/:id - Get card by ID (dispatches based on unitType lookup)
+router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const id = parseInt(req.params.id, 10)
+    if (isNaN(id)) {
+      throw createError(400, 'INVALID_ID', 'Invalid card ID')
+    }
+
+    // Try each repository in order: theme -> action -> task -> veto
+    const theme = await catalog.themes.findByIdWithChildren(DEFAULT_USER_ID, id)
+    if (theme) {
+      const card = themeToCard(theme)
+      card.children = theme.children.map(actionToCard)
+      return res.json(card)
+    }
+
+    const actionWithChildren = await catalog.actions.findByIdWithChildren(DEFAULT_USER_ID, id)
+    if (actionWithChildren) {
+      const card = actionToCard(actionWithChildren.action)
+      card.children = actionWithChildren.children.map(taskToCard)
+      return res.json(card)
+    }
+
+    const task = await catalog.tasks.findById(DEFAULT_USER_ID, id)
+    if (task) {
+      return res.json(taskToCard(task))
+    }
+
+    const veto = await catalog.vetoes.findById(DEFAULT_USER_ID, id)
+    if (veto) {
+      return res.json(vetoToCard(veto))
+    }
+
+    throw createError(404, 'NOT_FOUND', 'Card not found')
+  } catch (error) {
+    next(error)
+  }
+})
+
+// GET /api/cards/:id/children - Get children of a card
+router.get('/:id/children', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const id = parseInt(req.params.id, 10)
+    if (isNaN(id)) {
+      throw createError(400, 'INVALID_ID', 'Invalid card ID')
+    }
+
+    const { type, status } = req.query
+
+    // Check if it's a theme (children are actions)
+    const theme = await catalog.themes.findById(DEFAULT_USER_ID, id)
+    if (theme) {
+      if (type && isActionUnitType(type as UnitType)) {
+        // Filter by action type
+        const actionType = unitTypeToActionType(type as UnitType)
+        if (actionType) {
+          const actions = await catalog.actions.findByParentAndType(DEFAULT_USER_ID, id, actionType)
+          return res.json(actions.map(actionToCard))
+        }
+      }
+      const actions = await catalog.actions.findByParent(DEFAULT_USER_ID, id)
+      return res.json(actions.map(actionToCard))
+    }
+
+    // Check if it's an action (children are tasks)
+    const action = await catalog.actions.findById(DEFAULT_USER_ID, id)
+    if (action) {
+      if (status) {
+        const tasks = await catalog.actions.findChildrenByStatus(DEFAULT_USER_ID, id, status as TaskStatus)
+        return res.json(tasks.map(taskToCard))
+      }
+      const tasks = await catalog.tasks.findByAction(DEFAULT_USER_ID, id)
+      return res.json(tasks.map(taskToCard))
+    }
+
+    // Tasks and vetoes have no children
+    throw createError(404, 'NOT_FOUND', 'Card not found or has no children')
+  } catch (error) {
+    next(error)
+  }
+})
+
+// Helper to convert UnitType to actionType
+function unitTypeToActionType(unitType: UnitType): Action['actionType'] | null {
+  switch (unitType) {
+    case 'ACTION_GATE': return 'gate'
+    case 'ACTION_EXPERIMENT': return 'experiment'
+    case 'ACTION_ROUTINE': return 'routine'
+    case 'ACTION_OPS': return 'ops'
+    default: return null
+  }
+}
+
+// GET /api/cards/:id/hierarchy - Get hierarchy path
+router.get('/:id/hierarchy', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const id = parseInt(req.params.id, 10)
+    if (isNaN(id)) {
+      throw createError(400, 'INVALID_ID', 'Invalid card ID')
+    }
+
+    // Try each repository to find the entity and get its hierarchy
+    const theme = await catalog.themes.findById(DEFAULT_USER_ID, id)
+    if (theme) {
+      const hierarchy = await catalog.themes.getHierarchy(DEFAULT_USER_ID, id)
+      return res.json(hierarchy.map(themeToCard))
+    }
+
+    const action = await catalog.actions.findById(DEFAULT_USER_ID, id)
+    if (action) {
+      const hierarchy = await catalog.actions.getHierarchy(DEFAULT_USER_ID, id)
+      return res.json(hierarchy.map(item => {
+        if ('actionType' in item) return actionToCard(item as Action)
+        return themeToCard(item as Theme)
+      }))
+    }
+
+    const task = await catalog.tasks.findById(DEFAULT_USER_ID, id)
+    if (task) {
+      const hierarchy = await catalog.tasks.getHierarchy(DEFAULT_USER_ID, id)
+      return res.json(hierarchy.map(item => {
+        if ('actionId' in item) return taskToCard(item as Task)
+        if ('actionType' in item) return actionToCard(item as Action)
+        return themeToCard(item as Theme)
+      }))
+    }
+
+    const veto = await catalog.vetoes.findById(DEFAULT_USER_ID, id)
+    if (veto) {
+      return res.json([vetoToCard(veto)])
+    }
+
+    throw createError(404, 'NOT_FOUND', 'Card not found')
+  } catch (error) {
+    next(error)
+  }
+})
+
+
+// POST /api/cards - Create new card
+router.post('/', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const validation = validateCreateCard(req.body)
+    if (!validation.valid) {
+      throw createError(400, 'VALIDATION_ERROR', 'Validation failed', formatValidationErrors(validation.errors))
+    }
+
+    const { unitType, title, description, parentId, status, targetDate, startDate, seasonId, lagWeeks, criteria } = req.body
+
+    let card: CardResponse
+
+    if (unitType === 'THEME') {
+      const theme = await catalog.themes.create(DEFAULT_USER_ID, {
+        title,
+        description,
+      })
+      card = themeToCard(theme)
+    } else if (isActionUnitType(unitType as UnitType)) {
+      const actionType = unitTypeToActionType(unitType as UnitType)
+      if (!actionType || !parentId) {
+        throw createError(400, 'VALIDATION_ERROR', 'Actions require a parentId')
+      }
+      
+      const baseInput = {
+        parentId,
+        title,
+        description,
+        status: status || 'not_started',
+        startDate: startDate ? new Date(startDate) : undefined,
+        seasonId,
+      }
+
+      let action: Action
+      if (actionType === 'experiment') {
+        action = await catalog.actions.create(DEFAULT_USER_ID, {
+          ...baseInput,
+          actionType: 'experiment',
+          targetDate: targetDate ? new Date(targetDate) : undefined,
+          lagWeeks: lagWeeks ?? 6,
+          criteria: criteria || [],
+        })
+      } else if (actionType === 'gate') {
+        action = await catalog.actions.create(DEFAULT_USER_ID, {
+          ...baseInput,
+          actionType: 'gate',
+          targetDate: targetDate ? new Date(targetDate) : undefined,
+          criteria: criteria || [],
+        })
+      } else if (actionType === 'routine') {
+        action = await catalog.actions.create(DEFAULT_USER_ID, {
+          ...baseInput,
+          actionType: 'routine',
+        })
+      } else {
+        action = await catalog.actions.create(DEFAULT_USER_ID, {
+          ...baseInput,
+          actionType: 'ops',
+          targetDate: targetDate ? new Date(targetDate) : undefined,
+        })
+      }
+      card = actionToCard(action)
+    } else if (unitType === 'TASK') {
+      if (!parentId) {
+        throw createError(400, 'VALIDATION_ERROR', 'Tasks require a parentId (actionId)')
+      }
+      const task = await catalog.tasks.create(DEFAULT_USER_ID, {
+        actionId: parentId,
+        title,
+        description,
+        status: status || 'not_started',
+        targetDate: targetDate ? new Date(targetDate) : undefined,
+      })
+      card = taskToCard(task)
+    } else if (unitType === 'VETO') {
+      const veto = await catalog.vetoes.create(DEFAULT_USER_ID, {
+        title,
+        description,
+      })
+      card = vetoToCard(veto)
+    } else {
+      throw createError(400, 'VALIDATION_ERROR', `Unknown unitType: ${unitType}`)
+    }
+
+    res.status(201).json(card)
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('WIP limit')) {
+      next(createError(400, 'WIP_LIMIT_REACHED', error.message))
+    } else {
+      next(error)
+    }
+  }
+})
+
+// PUT /api/cards/:id - Update card
+router.put('/:id', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const id = parseInt(req.params.id, 10)
+    if (isNaN(id)) {
+      throw createError(400, 'INVALID_ID', 'Invalid card ID')
+    }
+
+    const validation = validateUpdateCard(req.body)
+    if (!validation.valid) {
+      throw createError(400, 'VALIDATION_ERROR', 'Validation failed', formatValidationErrors(validation.errors))
+    }
+
+    const { title, description, status, targetDate, startDate, completionDate, seasonId, lagWeeks, criteria } = req.body
+
+    // Try each repository to find and update
+    const theme = await catalog.themes.findById(DEFAULT_USER_ID, id)
+    if (theme) {
+      const updated = await catalog.themes.update(DEFAULT_USER_ID, id, {
+        title,
+        description,
+      })
+      return res.json(themeToCard(updated))
+    }
+
+    const action = await catalog.actions.findById(DEFAULT_USER_ID, id)
+    if (action) {
+      const updated = await catalog.actions.update(DEFAULT_USER_ID, id, {
+        title,
+        description,
+        status,
+        startDate: startDate !== undefined ? (startDate ? new Date(startDate) : null) : undefined,
+        targetDate: targetDate !== undefined ? (targetDate ? new Date(targetDate) : null) : undefined,
+        completionDate: completionDate !== undefined ? (completionDate ? new Date(completionDate) : null) : undefined,
+        seasonId,
+        lagWeeks,
+        criteria,
+      })
+      return res.json(actionToCard(updated))
+    }
+
+    const task = await catalog.tasks.findById(DEFAULT_USER_ID, id)
+    if (task) {
+      const updated = await catalog.tasks.update(DEFAULT_USER_ID, id, {
+        title,
+        description,
+        status,
+        targetDate: targetDate !== undefined ? (targetDate ? new Date(targetDate) : null) : undefined,
+        completionDate: completionDate !== undefined ? (completionDate ? new Date(completionDate) : null) : undefined,
+      })
+      return res.json(taskToCard(updated))
+    }
+
+    const veto = await catalog.vetoes.findById(DEFAULT_USER_ID, id)
+    if (veto) {
+      const updated = await catalog.vetoes.update(DEFAULT_USER_ID, id, {
+        title,
+        description,
+      })
+      return res.json(vetoToCard(updated))
+    }
+
+    throw createError(404, 'NOT_FOUND', 'Card not found')
+  } catch (error) {
+    if (error instanceof Error) {
+      if (error.message.includes('not found')) {
+        next(createError(404, 'NOT_FOUND', 'Card not found'))
+      } else if (error.message.includes('WIP limit')) {
+        next(createError(400, 'WIP_LIMIT_REACHED', error.message))
+      } else {
+        next(error)
+      }
+    } else {
+      next(error)
+    }
+  }
+})
+
+// DELETE /api/cards/:id - Delete card
+router.delete('/:id', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const id = parseInt(req.params.id, 10)
+    if (isNaN(id)) {
+      throw createError(400, 'INVALID_ID', 'Invalid card ID')
+    }
+
+    // Try each repository to find and delete
+    const theme = await catalog.themes.findById(DEFAULT_USER_ID, id)
+    if (theme) {
+      await catalog.themes.delete(DEFAULT_USER_ID, id)
+      return res.status(204).send()
+    }
+
+    const action = await catalog.actions.findById(DEFAULT_USER_ID, id)
+    if (action) {
+      await catalog.actions.delete(DEFAULT_USER_ID, id)
+      return res.status(204).send()
+    }
+
+    const task = await catalog.tasks.findById(DEFAULT_USER_ID, id)
+    if (task) {
+      await catalog.tasks.delete(DEFAULT_USER_ID, id)
+      return res.status(204).send()
+    }
+
+    const veto = await catalog.vetoes.findById(DEFAULT_USER_ID, id)
+    if (veto) {
+      await catalog.vetoes.delete(DEFAULT_USER_ID, id)
+      return res.status(204).send()
+    }
+
+    throw createError(404, 'NOT_FOUND', 'Card not found')
+  } catch (error) {
+    if (error instanceof Error) {
+      if (error.message.includes('not found')) {
+        next(createError(404, 'NOT_FOUND', 'Card not found'))
+      } else if (error.message.includes('with children')) {
+        next(createError(400, 'HAS_CHILDREN', 'Cannot delete card with children'))
+      } else {
+        next(error)
+      }
+    } else {
+      next(error)
+    }
+  }
+})
+
+export default router
+</file>
+
+<file path="src/server/routes/events.ts">
+import { Router, Request, Response, NextFunction } from 'express'
+import { eventService } from '../../services/eventService'
+
+const router = Router()
+
+// For MVP, use a fixed user ID
+const DEFAULT_USER_ID = 1
+
+// v4 EventType values
+type EventType = 
+  | 'gate_started' | 'gate_completed' | 'gate_failed'
+  | 'experiment_started' | 'experiment_completed' | 'experiment_failed' | 'experiment_pivoted'
+  | 'criteria_graded'
+  | 'routine_started' | 'routine_replaced'
+  | 'ops_started' | 'ops_completed'
+  | 'veto_added' | 'veto_violated'
+  | 'time_logged'
+  | 'week_planned'
+  | 'season_started' | 'season_ended'
+
+// Helper to create API errors
+function createError(statusCode: number, code: string, message: string) {
+  const error = new Error(message) as Error & { statusCode: number; code: string }
+  error.statusCode = statusCode
+  error.code = code
+  return error
+}
+
+// Helper to serialize Event (BigInt id to string)
+function serializeEvent(event: { id: bigint; [key: string]: unknown }) {
+  return {
+    ...event,
+    id: event.id.toString(),
+  }
+}
+
+function serializeEvents(events: Array<{ id: bigint; [key: string]: unknown }>) {
+  return events.map(serializeEvent)
+}
+
+// GET /api/events/conditions - Get all theme condition scores
+router.get('/conditions', async (_req: Request, res: Response, next: NextFunction) => {
+  try {
+    const conditions = await eventService.getAllThemeConditions(DEFAULT_USER_ID)
+    // Convert Map to object for JSON serialization
+    const result: Record<number, { conditionScore: number; lastActivity: string | null }> = {}
+    conditions.forEach((value, key) => {
+      result[key] = {
+        conditionScore: value.conditionScore,
+        lastActivity: value.lastActivity?.toISOString() || null,
+      }
+    })
+    res.json(result)
+  } catch (error) {
+    next(error)
+  }
+})
+
+// GET /api/events/theme-hours - Get actual hours for all themes
+router.get('/theme-hours', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const seasonId = req.query.seasonId ? parseInt(req.query.seasonId as string, 10) : undefined
+    const hoursMap = await eventService.getAllThemeHours(DEFAULT_USER_ID, seasonId)
+    // Convert Map to object for JSON serialization
+    const result: Record<number, number> = {}
+    hoursMap.forEach((value, key) => {
+      result[key] = value
+    })
+    res.json(result)
+  } catch (error) {
+    next(error)
+  }
+})
+
+// GET /api/events/theme-hours/:themeId - Get actual hours for a specific theme
+router.get('/theme-hours/:themeId', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const themeId = parseInt(req.params.themeId, 10)
+    if (isNaN(themeId)) {
+      throw createError(400, 'INVALID_ID', 'Invalid theme ID')
+    }
+    const seasonId = req.query.seasonId ? parseInt(req.query.seasonId as string, 10) : undefined
+    const hours = await eventService.getThemeActualHours(themeId, DEFAULT_USER_ID, seasonId)
+    res.json({ themeId, actualHours: hours })
+  } catch (error) {
+    next(error)
+  }
+})
+
+// GET /api/events/conditions/:themeId - Get condition score for a specific theme
+router.get('/conditions/:themeId', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const themeId = parseInt(req.params.themeId, 10)
+    if (isNaN(themeId)) {
+      throw createError(400, 'INVALID_ID', 'Invalid theme ID')
+    }
+    const condition = await eventService.getThemeCondition(themeId, DEFAULT_USER_ID)
+    res.json({
+      themeId,
+      conditionScore: condition.conditionScore,
+      lastActivity: condition.lastActivity?.toISOString() || null,
+    })
+  } catch (error) {
+    next(error)
+  }
+})
+
+// POST /api/events/time - Log time spent (v4 API)
+router.post('/time', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { cardId, minutes, date } = req.body
+    
+    if (!cardId || typeof minutes !== 'number') {
+      throw createError(400, 'VALIDATION_ERROR', 'cardId and minutes are required')
+    }
+    
+    if (minutes <= 0) {
+      throw createError(400, 'VALIDATION_ERROR', 'minutes must be positive')
+    }
+
+    const event = await eventService.logTime(DEFAULT_USER_ID, cardId, minutes, date)
+    res.status(201).json(serializeEvent(event))
+  } catch (error) {
+    next(error)
+  }
+})
+
+// POST /api/events/criteria-grade - Grade criteria for an action (v4 API - season grading)
+router.post('/criteria-grade', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { cardId, gradingType, results, notes } = req.body
+    
+    if (!cardId || !gradingType || !Array.isArray(results)) {
+      throw createError(400, 'VALIDATION_ERROR', 'cardId, gradingType, and results array are required')
+    }
+
+    if (!['mid_season', 'end_season'].includes(gradingType)) {
+      throw createError(400, 'VALIDATION_ERROR', 'gradingType must be "mid_season" or "end_season"')
+    }
+
+    const event = await eventService.gradeSeasonCriteria(DEFAULT_USER_ID, cardId, gradingType, results, notes)
+    res.status(201).json(serializeEvent(event))
+  } catch (error) {
+    next(error)
+  }
+})
+
+// POST /api/events/veto-violated - Log veto violation (v4 API)
+router.post('/veto-violated', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { vetoId, reason } = req.body
+    
+    if (!vetoId) {
+      throw createError(400, 'VALIDATION_ERROR', 'vetoId is required')
+    }
+
+    const event = await eventService.logVetoViolation(DEFAULT_USER_ID, vetoId, reason)
+    res.status(201).json(serializeEvent(event))
+  } catch (error) {
+    next(error)
+  }
+})
+
+// POST /api/events/gate-started - Log gate started (v4 API)
+router.post('/gate-started', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { cardId } = req.body
+    if (!cardId) throw createError(400, 'VALIDATION_ERROR', 'cardId is required')
+    const event = await eventService.logGateStarted(DEFAULT_USER_ID, cardId)
+    res.status(201).json(serializeEvent(event))
+  } catch (error) {
+    next(error)
+  }
+})
+
+// POST /api/events/gate-completed - Log gate completed (v4 API)
+router.post('/gate-completed', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { cardId } = req.body
+    if (!cardId) throw createError(400, 'VALIDATION_ERROR', 'cardId is required')
+    const event = await eventService.logGateCompleted(DEFAULT_USER_ID, cardId)
+    res.status(201).json(serializeEvent(event))
+  } catch (error) {
+    next(error)
+  }
+})
+
+// POST /api/events/experiment-started - Log experiment started (v4 API)
+router.post('/experiment-started', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { cardId } = req.body
+    if (!cardId) throw createError(400, 'VALIDATION_ERROR', 'cardId is required')
+    const event = await eventService.logExperimentStarted(DEFAULT_USER_ID, cardId)
+    res.status(201).json(serializeEvent(event))
+  } catch (error) {
+    next(error)
+  }
+})
+
+// POST /api/events/experiment-completed - Log experiment completed (v4 API)
+router.post('/experiment-completed', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { cardId } = req.body
+    if (!cardId) throw createError(400, 'VALIDATION_ERROR', 'cardId is required')
+    const event = await eventService.logExperimentCompleted(DEFAULT_USER_ID, cardId)
+    res.status(201).json(serializeEvent(event))
+  } catch (error) {
+    next(error)
+  }
+})
+
+// POST /api/events/routine-started - Log routine started (v4 API)
+router.post('/routine-started', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { cardId } = req.body
+    if (!cardId) throw createError(400, 'VALIDATION_ERROR', 'cardId is required')
+    const event = await eventService.logRoutineStarted(DEFAULT_USER_ID, cardId)
+    res.status(201).json(serializeEvent(event))
+  } catch (error) {
+    next(error)
+  }
+})
+
+// POST /api/events/ops-started - Log ops started (v4 API)
+router.post('/ops-started', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { cardId } = req.body
+    if (!cardId) throw createError(400, 'VALIDATION_ERROR', 'cardId is required')
+    const event = await eventService.logOpsStarted(DEFAULT_USER_ID, cardId)
+    res.status(201).json(serializeEvent(event))
+  } catch (error) {
+    next(error)
+  }
+})
+
+// POST /api/events/ops-completed - Log ops completed (v4 API)
+router.post('/ops-completed', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { cardId } = req.body
+    if (!cardId) throw createError(400, 'VALIDATION_ERROR', 'cardId is required')
+    const event = await eventService.logOpsCompleted(DEFAULT_USER_ID, cardId)
+    res.status(201).json(serializeEvent(event))
+  } catch (error) {
+    next(error)
+  }
+})
+
+// GET /api/events - List events with optional filters
+router.get('/', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { cardId, type, start, end, limit } = req.query
+
+    // Filter by card ID
+    if (cardId) {
+      const id = parseInt(cardId as string, 10)
+      if (isNaN(id)) {
+        throw createError(400, 'INVALID_ID', 'Invalid card ID')
+      }
+      const events = await eventService.getByCard(id, DEFAULT_USER_ID)
+      return res.json(serializeEvents(events))
+    }
+
+    // Filter by event type
+    if (type) {
+      const events = await eventService.getByType(DEFAULT_USER_ID, type as EventType)
+      return res.json(serializeEvents(events))
+    }
+
+    // Filter by time range
+    if (start && end) {
+      const startDate = new Date(start as string)
+      const endDate = new Date(end as string)
+      if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+        throw createError(400, 'INVALID_DATE', 'Invalid date format')
+      }
+      const events = await eventService.getByTimeRange(DEFAULT_USER_ID, startDate, endDate)
+      return res.json(serializeEvents(events))
+    }
+
+    // Default: return recent events
+    const eventLimit = limit ? parseInt(limit as string, 10) : 50
+    const events = await eventService.getRecent(DEFAULT_USER_ID, eventLimit)
+    res.json(serializeEvents(events))
+  } catch (error) {
+    next(error)
+  }
+})
+
+// POST /api/events - Log a new event
+router.post('/', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { eventType, cardId, payload, idempotencyKey } = req.body
+
+    if (!eventType) {
+      throw createError(400, 'VALIDATION_ERROR', 'Event type is required')
+    }
+
+    const event = await eventService.log({
+      userId: DEFAULT_USER_ID,
+      eventType: eventType as EventType,
+      cardId: cardId ? parseInt(cardId, 10) : undefined,
+      payload: payload || {},
+      idempotencyKey,
+    })
+
+    res.status(201).json(serializeEvent(event))
+  } catch (error) {
+    next(error)
+  }
+})
+
+// GET /api/events/:id - Get event by ID
+router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const id = BigInt(req.params.id)
+    const event = await eventService.getById(id, DEFAULT_USER_ID)
+    
+    if (!event) {
+      throw createError(404, 'NOT_FOUND', 'Event not found')
+    }
+
+    res.json(serializeEvent(event))
+  } catch (error) {
+    if (error instanceof SyntaxError) {
+      next(createError(400, 'INVALID_ID', 'Invalid event ID'))
+    } else {
+      next(error)
+    }
+  }
+})
+
+export default router
+</file>
+
+<file path="src/server/routes/seasons.ts">
+import { Router, Request, Response, NextFunction } from 'express'
+import { seasonService } from '../../services/seasonService'
+import { eventService } from '../../services/eventService'
+import { validateCreateSeason, formatValidationErrors } from '../../lib/validation'
+
+const router = Router()
+
+// For MVP, use a fixed user ID
+const DEFAULT_USER_ID = 1
+
+// Helper to create API errors
+function createError(statusCode: number, code: string, message: string, details?: Record<string, string[]>) {
+  const error = new Error(message) as Error & { statusCode: number; code: string; details?: Record<string, string[]> }
+  error.statusCode = statusCode
+  error.code = code
+  if (details) error.details = details
+  return error
+}
+
+// GET /api/seasons - List all seasons
+router.get('/', async (_req: Request, res: Response, next: NextFunction) => {
+  try {
+    const seasons = await seasonService.getAll(DEFAULT_USER_ID)
+    res.json(seasons)
+  } catch (error) {
+    next(error)
+  }
+})
+
+// GET /api/seasons/active - Get active season
+router.get('/active', async (_req: Request, res: Response, next: NextFunction) => {
+  try {
+    const season = await seasonService.getActive(DEFAULT_USER_ID)
+    if (!season) {
+      return res.json(null)
+    }
+    res.json(season)
+  } catch (error) {
+    next(error)
+  }
+})
+
+// GET /api/seasons/:id - Get season by ID
+router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const id = parseInt(req.params.id, 10)
+    if (isNaN(id)) {
+      throw createError(400, 'INVALID_ID', 'Invalid season ID')
+    }
+
+    const season = await seasonService.getById(id, DEFAULT_USER_ID)
+    if (!season) {
+      throw createError(404, 'NOT_FOUND', 'Season not found')
+    }
+
+    res.json(season)
+  } catch (error) {
+    next(error)
+  }
+})
+
+// POST /api/seasons - Create new season
+router.post('/', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const validation = validateCreateSeason(req.body)
+    if (!validation.valid) {
+      throw createError(400, 'VALIDATION_ERROR', 'Validation failed', formatValidationErrors(validation.errors))
+    }
+
+    const season = await seasonService.create({
+      userId: DEFAULT_USER_ID,
+      name: req.body.name,
+      startDate: new Date(req.body.startDate),
+      durationWeeks: parseInt(req.body.durationWeeks, 10),
+      utilityRate: req.body.utilityRate ? parseFloat(req.body.utilityRate) : undefined,
+    })
+
+    res.status(201).json(season)
+  } catch (error) {
+    next(error)
+  }
+})
+
+// PUT /api/seasons/:id/activate - Activate a season
+router.put('/:id/activate', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const id = parseInt(req.params.id, 10)
+    if (isNaN(id)) {
+      throw createError(400, 'INVALID_ID', 'Invalid season ID')
+    }
+
+    const season = await seasonService.activate(id, DEFAULT_USER_ID)
+    
+    // Log season_started event
+    await eventService.log({
+      userId: DEFAULT_USER_ID,
+      eventType: 'season_started',
+      payload: { season_id: id, season_name: season.name },
+    })
+    
+    res.json(season)
+  } catch (error) {
+    if (error instanceof Error && error.message === 'Season not found') {
+      next(createError(404, 'NOT_FOUND', 'Season not found'))
+    } else {
+      next(error)
+    }
+  }
+})
+
+// PUT /api/seasons/:id/deactivate - Deactivate a season
+router.put('/:id/deactivate', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const id = parseInt(req.params.id, 10)
+    if (isNaN(id)) {
+      throw createError(400, 'INVALID_ID', 'Invalid season ID')
+    }
+
+    const season = await seasonService.deactivate(id, DEFAULT_USER_ID)
+    
+    // Log season_ended event
+    await eventService.log({
+      userId: DEFAULT_USER_ID,
+      eventType: 'season_ended',
+      payload: { season_id: id, season_name: season.name },
+    })
+    
+    res.json(season)
+  } catch (error) {
+    if (error instanceof Error && error.message === 'Season not found') {
+      next(createError(404, 'NOT_FOUND', 'Season not found'))
+    } else {
+      next(error)
+    }
+  }
+})
+
+// PUT /api/seasons/:id - Update season
+router.put('/:id', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const id = parseInt(req.params.id, 10)
+    if (isNaN(id)) {
+      throw createError(400, 'INVALID_ID', 'Invalid season ID')
+    }
+
+    const season = await seasonService.update(id, DEFAULT_USER_ID, {
+      name: req.body.name,
+      startDate: req.body.startDate ? new Date(req.body.startDate) : undefined,
+      durationWeeks: req.body.durationWeeks !== undefined ? Number(req.body.durationWeeks) : undefined,
+      utilityRate: req.body.utilityRate !== undefined ? Number(req.body.utilityRate) : undefined,
+      themeAllocations: req.body.themeAllocations,
+    })
+
+    res.json(season)
+  } catch (error) {
+    if (error instanceof Error && error.message === 'Season not found') {
+      next(createError(404, 'NOT_FOUND', 'Season not found'))
+    } else {
+      next(error)
+    }
+  }
+})
+
+// DELETE /api/seasons/:id - Delete season
+router.delete('/:id', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const id = parseInt(req.params.id, 10)
+    if (isNaN(id)) {
+      throw createError(400, 'INVALID_ID', 'Invalid season ID')
+    }
+
+    await seasonService.delete(id, DEFAULT_USER_ID)
+    res.status(204).send()
+  } catch (error) {
+    if (error instanceof Error && error.message === 'Season not found') {
+      next(createError(404, 'NOT_FOUND', 'Season not found'))
+    } else {
+      next(error)
+    }
+  }
+})
+
+export default router
+</file>
+
+<file path="src/server/routes/themeAllocations.ts">
+import { Router, Request, Response } from 'express'
+import prisma from '../../lib/db'
+
+const router = Router()
+const DEFAULT_USER_ID = 1
+
+// Get all allocations for a season
+router.get('/season/:seasonId', async (req: Request, res: Response) => {
+  try {
+    const seasonId = parseInt(req.params.seasonId, 10)
+    const season = await prisma.season.findFirst({
+      where: { id: seasonId, userId: DEFAULT_USER_ID },
+      select: { themeAllocations: true },
+    })
+    
+    if (!season) {
+      return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Season not found' } })
+    }
+    
+    // Convert JSON to array format for API compatibility
+    const allocations = season.themeAllocations as Record<string, number> || {}
+    const result = Object.entries(allocations).map(([themeId, allocation]) => ({
+      seasonId,
+      themeId: parseInt(themeId, 10),
+      allocation,
+    }))
+    
+    res.json(result)
+  } catch (error) {
+    console.error('Failed to get allocations:', error)
+    res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get allocations' } })
+  }
+})
+
+// Get allocation for a specific theme in a season
+router.get('/season/:seasonId/theme/:themeId', async (req: Request, res: Response) => {
+  try {
+    const seasonId = parseInt(req.params.seasonId, 10)
+    const themeId = parseInt(req.params.themeId, 10)
+    
+    const season = await prisma.season.findFirst({
+      where: { id: seasonId, userId: DEFAULT_USER_ID },
+      select: { themeAllocations: true },
+    })
+    
+    if (!season) {
+      return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Season not found' } })
+    }
+    
+    const allocations = season.themeAllocations as Record<string, number> || {}
+    const allocation = allocations[themeId.toString()] ?? 0
+    
+    res.json({ seasonId, themeId, allocation })
+  } catch (error) {
+    console.error('Failed to get allocation:', error)
+    res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get allocation' } })
+  }
+})
+
+// Set/update allocation for a theme in a season
+router.put('/season/:seasonId/theme/:themeId', async (req: Request, res: Response) => {
+  try {
+    const seasonId = parseInt(req.params.seasonId, 10)
+    const themeId = parseInt(req.params.themeId, 10)
+    const { allocation } = req.body
+    
+    if (typeof allocation !== 'number' || allocation < 0 || allocation > 1) {
+      return res.status(400).json({ 
+        error: { code: 'VALIDATION_ERROR', message: 'Allocation must be a number between 0 and 1' } 
+      })
+    }
+
+    const season = await prisma.season.findFirst({
+      where: { id: seasonId, userId: DEFAULT_USER_ID },
+    })
+    
+    if (!season) {
+      return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Season not found' } })
+    }
+
+    const currentAllocations = season.themeAllocations as Record<string, number> || {}
+    const updatedAllocations = {
+      ...currentAllocations,
+      [themeId.toString()]: allocation,
+    }
+
+    await prisma.season.update({
+      where: { id: seasonId },
+      data: { themeAllocations: updatedAllocations },
+    })
+    
+    res.json({ seasonId, themeId, allocation })
+  } catch (error) {
+    console.error('Failed to update allocation:', error)
+    res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to update allocation' } })
+  }
+})
+
+export default router
+</file>
+
+<file path="src/server/routes/users.ts">
+import { Router, Request, Response, NextFunction } from 'express'
+import { userService } from '../../services/userService'
+
+const router = Router()
+const DEFAULT_USER_ID = 1
+
+router.get('/settings', async (_req: Request, res: Response, next: NextFunction) => {
+  try {
+    const settings = await userService.getSettings(DEFAULT_USER_ID)
+    res.json(settings)
+  } catch (error) {
+    next(error)
+  }
+})
+
+router.put('/settings', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const settings = await userService.updateSettings(DEFAULT_USER_ID, req.body)
+    res.json(settings)
+  } catch (error) {
+    next(error)
+  }
+})
+
+export default router
+</file>
+
+<file path="src/server/agentTools.ts">
+import { tool, createSdkMcpServer } from '@anthropic-ai/claude-agent-sdk'
+import { z } from 'zod'
+import prisma from '../lib/db'
+
+// Context passed to each tool call
+export interface ToolContext {
+  userId: number
+  sessionId: string
+  checkpointUuid?: string
+  allowedTools?: string[]
+}
+
+// Factory to create tools with context
+export function createAgentTools(context: ToolContext) {
+  const allTools = [
+      // READ: List cards (no audit needed)
+      tool(
+        'list_cards',
+        'List cards with optional filters',
+        {
+          unitType: z.enum(['THEME', 'ACTION_GATE', 'ACTION_EXPERIMENT', 'ACTION_ROUTINE', 'ACTION_OPS', 'TASK', 'VETO']).optional(),
+          parentId: z.number().optional(),
+          status: z.enum(['not_started', 'in_progress', 'completed', 'backlog']).optional(),
+          limit: z.number().default(20),
+        },
+        async (args) => {
+          const cards = await prisma.card.findMany({
+            where: {
+              userId: context.userId,
+              ...(args.unitType && { unitType: args.unitType }),
+              ...(args.parentId && { parentId: args.parentId }),
+              ...(args.status && { status: args.status }),
+            },
+            take: args.limit,
+            orderBy: { updatedAt: 'desc' },
+          })
+          return { content: [{ type: 'text' as const, text: JSON.stringify(cards, null, 2) }] }
+        }
+      ),
+
+      // READ: Get single card with children
+      tool(
+        'get_card',
+        'Get a card by ID with its children',
+        { cardId: z.number() },
+        async (args) => {
+          const card = await prisma.card.findFirst({
+            where: { id: args.cardId, userId: context.userId },
+            include: { children: true },
+          })
+          if (!card) return { content: [{ type: 'text' as const, text: 'Card not found' }] }
+          return { content: [{ type: 'text' as const, text: JSON.stringify(card, null, 2) }] }
+        }
+      ),
+
+      // WRITE: Create card (audited)
+      tool(
+        'create_card',
+        'Create a new card. For criteria, use the criteria array field on ACTION_* cards instead of creating separate CRITERIA cards.',
+        {
+          title: z.string(),
+          unitType: z.enum(['THEME', 'ACTION_GATE', 'ACTION_EXPERIMENT', 'ACTION_ROUTINE', 'ACTION_OPS', 'TASK', 'VETO']),
+          parentId: z.number().optional(),
+          description: z.string().optional(),
+          status: z.enum(['not_started', 'in_progress', 'completed', 'backlog']).default('not_started'),
+          criteria: z.array(z.string()).optional().describe('Array of criterion strings for ACTION_* cards'),
+        },
+        async (args) => {
+          const card = await prisma.card.create({
+            data: {
+              userId: context.userId,
+              title: args.title,
+              unitType: args.unitType,
+              parentId: args.parentId,
+              description: args.description,
+              status: args.status,
+              criteria: args.criteria || [],
+            },
+          })
+
+          // Audit log for rollback capability
+          await prisma.event.create({
+            data: {
+              userId: context.userId,
+              eventType: 'agent_mutation',
+              cardId: card.id,
+              payload: {
+                operation: 'create',
+                after: card,
+                agentSessionId: context.sessionId,
+                checkpointUuid: context.checkpointUuid,
+              },
+            },
+          })
+
+          return { content: [{ type: 'text' as const, text: `Created card ${card.id}: ${card.title}` }] }
+        }
+      ),
+
+      // WRITE: Update card (audited)
+      tool(
+        'update_card',
+        "Update a card's properties. Use criteria array to set/update criteria for ACTION_* cards.",
+        {
+          cardId: z.number(),
+          title: z.string().optional(),
+          description: z.string().optional(),
+          status: z.enum(['not_started', 'in_progress', 'completed', 'backlog']).optional(),
+          targetDate: z.string().optional(),
+          criteria: z.array(z.string()).optional().describe('Array of criterion strings for ACTION_* cards'),
+        },
+        async (args) => {
+          const { cardId, ...updates } = args
+
+          const before = await prisma.card.findFirst({
+            where: { id: cardId, userId: context.userId },
+          })
+          if (!before) return { content: [{ type: 'text' as const, text: 'Card not found' }] }
+
+          const after = await prisma.card.update({
+            where: { id: cardId },
+            data: {
+              ...(updates.title && { title: updates.title }),
+              ...(updates.description !== undefined && { description: updates.description }),
+              ...(updates.status && { status: updates.status }),
+              ...(updates.targetDate && { targetDate: new Date(updates.targetDate) }),
+              ...(updates.criteria !== undefined && { criteria: updates.criteria }),
+            },
+          })
+
+          await prisma.event.create({
+            data: {
+              userId: context.userId,
+              eventType: 'agent_mutation',
+              cardId,
+              payload: {
+                operation: 'update',
+                before,
+                after,
+                agentSessionId: context.sessionId,
+                checkpointUuid: context.checkpointUuid,
+              },
+            },
+          })
+
+          return { content: [{ type: 'text' as const, text: `Updated card ${cardId}` }] }
+        }
+      ),
+
+      // WRITE: Delete card (audited)
+      tool(
+        'delete_card',
+        'Delete a card (must have no children)',
+        { cardId: z.number() },
+        async (args) => {
+          const card = await prisma.card.findFirst({
+            where: { id: args.cardId, userId: context.userId },
+            include: { children: true },
+          })
+          if (!card) return { content: [{ type: 'text' as const, text: 'Card not found' }] }
+          if (card.children.length > 0) return { content: [{ type: 'text' as const, text: 'Cannot delete card with children' }] }
+
+          await prisma.card.delete({ where: { id: args.cardId } })
+
+          await prisma.event.create({
+            data: {
+              userId: context.userId,
+              eventType: 'agent_mutation',
+              cardId: args.cardId,
+              payload: {
+                operation: 'delete',
+                before: card,
+                agentSessionId: context.sessionId,
+                checkpointUuid: context.checkpointUuid,
+              },
+            },
+          })
+
+          return { content: [{ type: 'text' as const, text: `Deleted card ${args.cardId}` }] }
+        }
+      ),
+
+      // READ: Get active season
+      tool(
+        'get_active_season',
+        'Get the current active season',
+        {},
+        async () => {
+          const season = await prisma.season.findFirst({
+            where: { userId: context.userId, isActive: true },
+          })
+          return { content: [{ type: 'text' as const, text: JSON.stringify(season, null, 2) }] }
+        }
+      ),
+
+      // READ: Query recent events
+      tool(
+        'get_recent_events',
+        'Get recent events for the user',
+        { limit: z.number().default(10) },
+        async (args) => {
+          const events = await prisma.event.findMany({
+            where: { userId: context.userId },
+            orderBy: { occurredAt: 'desc' },
+            take: args.limit,
+          })
+          return { content: [{ type: 'text' as const, text: JSON.stringify(events, null, 2) }] }
+        }
+      ),
+    ]
+
+  // Filter tools if allowedTools is specified
+  const tools = context.allowedTools
+    ? allTools.filter(t => context.allowedTools!.includes(t.name))
+    : allTools
+
+  return createSdkMcpServer({
+    name: 'kaizen-db',
+    version: '1.0.0',
+    tools,
+  })
+}
+</file>
+
+<file path="src/server/index.ts">
+import express, { Request, Response, NextFunction } from 'express'
+import cors from 'cors'
+import cardsRouter from './routes/cards'
+import seasonsRouter from './routes/seasons'
+import eventsRouter from './routes/events'
+import themeAllocationsRouter from './routes/themeAllocations'
+import usersRouter from './routes/users'
+import agentRouter from './routes/agent'
+
+const app = express()
+const PORT = process.env.API_PORT || 3001
+
+// Middleware
+app.use(cors())
+app.use(express.json())
+
+// Request logging
+app.use((req: Request, _res: Response, next: NextFunction) => {
+  console.log(`${new Date().toISOString()} ${req.method} ${req.path}`)
+  next()
+})
+
+// Routes
+app.use('/api/cards', cardsRouter)
+app.use('/api/seasons', seasonsRouter)
+app.use('/api/events', eventsRouter)
+app.use('/api/allocations', themeAllocationsRouter)
+app.use('/api/users', usersRouter)
+app.use('/api/agent', agentRouter)
+
+// Health check
+app.get('/api/health', (_req: Request, res: Response) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() })
+})
+
+// Error handling middleware
+interface ApiError extends Error {
+  statusCode?: number
+  code?: string
+  details?: Record<string, string[]>
+}
+
+app.use((err: ApiError, _req: Request, res: Response, _next: NextFunction) => {
+  // _next is required by Express error handler signature but not used
+  void _next
+  console.error('API Error:', err)
+
+  const statusCode = err.statusCode || 500
+  const code = err.code || 'INTERNAL_ERROR'
+  const message = err.message || 'An unexpected error occurred'
+
+  res.status(statusCode).json({
+    error: {
+      code,
+      message,
+      ...(err.details && { details: err.details }),
+    },
+  })
+})
+
+// 404 handler
+app.use((_req: Request, res: Response) => {
+  res.status(404).json({
+    error: {
+      code: 'NOT_FOUND',
+      message: 'Endpoint not found',
+    },
+  })
+})
+
+// Start server
+app.listen(PORT, () => {
+  console.log(`🚀 API server running on http://localhost:${PORT}`)
+})
+
+export default app
+</file>
+
+<file path="src/services/cardService.ts">
+import { PrismaClient, Card, TaskStatus, UnitType } from '@prisma/client'
+import { getUserSettings, UserSettings } from '../../lib/settings'
+
+const prisma = new PrismaClient()
+
+// Action types for filtering
+const ACTION_TYPES: UnitType[] = ['ACTION_GATE', 'ACTION_EXPERIMENT', 'ACTION_ROUTINE', 'ACTION_OPS']
+
+// Helper to check if a unit type is an action type
+const isActionType = (unitType: UnitType): boolean => ACTION_TYPES.includes(unitType)
+
+export interface CreateCardInput {
+  userId: number
+  parentId?: number
+  title: string
+  description?: string
+  targetDate?: Date
+  startDate?: Date
+  status?: TaskStatus
+  unitType: UnitType
+  seasonId?: number
+  lagWeeks?: number
+  criteria?: string[]
+}
+
+export interface UpdateCardInput {
+  title?: string
+  description?: string
+  targetDate?: Date | null
+  completionDate?: Date | null
+  startDate?: Date | null
+  status?: TaskStatus
+  seasonId?: number | null
+  lagWeeks?: number | null
+  criteria?: string[]
+}
+
+export class CardService {
+  /**
+   * Get user settings with defaults
+   */
+  async getUserSettings(userId: number): Promise<UserSettings> {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { settings: true },
+    })
+    return getUserSettings(user?.settings)
+  }
+
+  /**
+   * Get active count for a specific unit type under a theme
+   */
+  async getActiveCount(userId: number, themeId: number, unitType: UnitType): Promise<number> {
+    return prisma.card.count({
+      where: {
+        userId,
+        parentId: themeId,
+        unitType,
+        status: 'in_progress',
+      },
+    })
+  }
+
+  /**
+   * Get the WIP limit for a unit type from settings
+   */
+  getLimit(settings: UserSettings, unitType: UnitType): number {
+    switch (unitType) {
+      case 'ACTION_GATE':
+        return settings.maxGatesPerTheme
+      case 'ACTION_EXPERIMENT':
+        return settings.maxExperimentsPerTheme
+      case 'ACTION_ROUTINE':
+        return settings.maxRoutinesPerTheme
+      case 'ACTION_OPS':
+        return settings.maxOpsPerTheme
+      default:
+        return Infinity
+    }
+  }
+
+
+  /**
+   * Check if a new card can be created (WIP limit check)
+   */
+  async canCreate(userId: number, themeId: number, unitType: UnitType): Promise<boolean> {
+    const settings = await this.getUserSettings(userId)
+    const activeCount = await this.getActiveCount(userId, themeId, unitType)
+    const limit = this.getLimit(settings, unitType)
+    return activeCount < limit
+  }
+
+  /**
+   * Get global vetoes (VETO cards without parentId)
+   */
+  async getGlobalVetoes(userId: number): Promise<Card[]> {
+    return prisma.card.findMany({
+      where: { userId, unitType: 'VETO', parentId: null },
+      orderBy: { createdAt: 'asc' },
+    })
+  }
+
+  /**
+   * Create a new card
+   */
+  async create(data: CreateCardInput): Promise<Card> {
+    // Validate title is not empty
+    if (!data.title || data.title.trim() === '') {
+      throw new Error('Title is required')
+    }
+
+    // Check WIP limits for action types
+    if (isActionType(data.unitType) && data.parentId && data.status !== 'backlog') {
+      const canCreate = await this.canCreate(data.userId, data.parentId, data.unitType)
+      if (!canCreate) {
+        throw new Error(`WIP limit reached for ${data.unitType}`)
+      }
+    }
+
+    return prisma.card.create({
+      data: {
+        userId: data.userId,
+        parentId: data.parentId,
+        title: data.title.trim(),
+        description: data.description,
+        targetDate: data.targetDate,
+        startDate: data.startDate,
+        status: data.status || 'not_started',
+        unitType: data.unitType,
+        seasonId: data.seasonId,
+        lagWeeks: data.lagWeeks,
+        criteria: data.criteria || [],
+      },
+    })
+  }
+
+
+  /**
+   * Get a card by ID
+   */
+  async getById(id: number, userId: number): Promise<Card | null> {
+    return prisma.card.findFirst({
+      where: {
+        id,
+        userId,
+      },
+    })
+  }
+
+  /**
+   * Get a card with its children
+   */
+  async getByIdWithChildren(id: number, userId: number): Promise<Card & { children: Card[] } | null> {
+    return prisma.card.findFirst({
+      where: {
+        id,
+        userId,
+      },
+      include: {
+        children: true,
+      },
+    })
+  }
+
+  /**
+   * Update a card
+   */
+  async update(id: number, userId: number, data: UpdateCardInput): Promise<Card> {
+    // Validate title if provided
+    if (data.title !== undefined && (!data.title || data.title.trim() === '')) {
+      throw new Error('Title cannot be empty')
+    }
+
+    // Verify ownership
+    const existing = await this.getById(id, userId)
+    if (!existing) {
+      throw new Error('Card not found')
+    }
+
+    // Check WIP limits when activating from backlog
+    if (data.status === 'in_progress' && existing.status === 'backlog' && existing.parentId) {
+      const canActivate = await this.canCreate(userId, existing.parentId, existing.unitType)
+      if (!canActivate) {
+        throw new Error(`WIP limit reached for ${existing.unitType}`)
+      }
+    }
+
+    return prisma.card.update({
+      where: { id },
+      data: {
+        ...(data.title !== undefined && { title: data.title.trim() }),
+        ...(data.description !== undefined && { description: data.description }),
+        ...(data.targetDate !== undefined && { targetDate: data.targetDate }),
+        ...(data.completionDate !== undefined && { completionDate: data.completionDate }),
+        ...(data.startDate !== undefined && { startDate: data.startDate }),
+        ...(data.status !== undefined && { status: data.status }),
+        ...(data.seasonId !== undefined && { seasonId: data.seasonId }),
+        ...(data.lagWeeks !== undefined && { lagWeeks: data.lagWeeks }),
+        ...(data.criteria !== undefined && { criteria: data.criteria }),
+      },
+    })
+  }
+
+  /**
+   * Delete a card
+   */
+  async delete(id: number, userId: number): Promise<void> {
+    // Verify ownership
+    const existing = await this.getById(id, userId)
+    if (!existing) {
+      throw new Error('Card not found')
+    }
+
+    // Check for children
+    const children = await this.getChildren(id, userId)
+    if (children.length > 0) {
+      throw new Error('Cannot delete card with children')
+    }
+
+    await prisma.card.delete({
+      where: { id },
+    })
+  }
+
+
+  /**
+   * Get all cards by type for a user
+   */
+  async getByType(userId: number, unitType: UnitType): Promise<Card[]> {
+    return prisma.card.findMany({
+      where: {
+        userId,
+        unitType,
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    })
+  }
+
+  /**
+   * Get children of a card
+   */
+  async getChildren(parentId: number, userId: number): Promise<Card[]> {
+    return prisma.card.findMany({
+      where: {
+        parentId,
+        userId,
+      },
+      orderBy: {
+        createdAt: 'asc',
+      },
+    })
+  }
+
+  /**
+   * Get children of a card filtered by unit type
+   */
+  async getChildrenByType(parentId: number, userId: number, unitType: UnitType): Promise<Card[]> {
+    return prisma.card.findMany({
+      where: {
+        parentId,
+        userId,
+        unitType,
+      },
+      orderBy: {
+        createdAt: 'asc',
+      },
+    })
+  }
+
+  /**
+   * Get children of a card filtered by status
+   */
+  async getChildrenByStatus(parentId: number, userId: number, status: TaskStatus): Promise<Card[]> {
+    return prisma.card.findMany({
+      where: {
+        parentId,
+        userId,
+        status,
+      },
+      orderBy: {
+        createdAt: 'asc',
+      },
+    })
+  }
+
+  /**
+   * Get the hierarchy path from root to the given card
+   */
+  async getHierarchy(id: number, userId: number): Promise<Card[]> {
+    const path: Card[] = []
+    let current = await this.getById(id, userId)
+
+    while (current) {
+      path.unshift(current)
+      if (current.parentId) {
+        current = await this.getById(current.parentId, userId)
+      } else {
+        break
+      }
+    }
+
+    return path
+  }
+
+  /**
+   * Get all themes with action counts
+   */
+  async getThemesWithCounts(userId: number): Promise<(Card & { actionCount: number })[]> {
+    const themes = await this.getByType(userId, 'THEME')
+    
+    const themesWithCounts = await Promise.all(
+      themes.map(async (theme) => {
+        const actionCount = await prisma.card.count({
+          where: {
+            parentId: theme.id,
+            userId,
+            unitType: { in: ACTION_TYPES },
+            status: 'in_progress',
+          },
+        })
+        return { ...theme, actionCount }
+      })
+    )
+
+    return themesWithCounts
+  }
+
+  /**
+   * Get active actions (ACTION_* types with status in_progress)
+   */
+  async getActiveActions(userId: number): Promise<Card[]> {
+    return prisma.card.findMany({
+      where: {
+        userId,
+        unitType: { in: ACTION_TYPES },
+        status: 'in_progress',
+      },
+      orderBy: {
+        updatedAt: 'desc',
+      },
+    })
+  }
+
+  /**
+   * Get backlog items for a theme
+   */
+  async getBacklog(userId: number, themeId: number): Promise<Card[]> {
+    return prisma.card.findMany({
+      where: {
+        userId,
+        parentId: themeId,
+        status: 'backlog',
+      },
+      orderBy: {
+        createdAt: 'asc',
+      },
+    })
+  }
+}
+
+export const cardService = new CardService()
+
+// Legacy export for backward compatibility
+export const taskEntryService = cardService
+</file>
+
+<file path="src/services/catalog.ts">
+/**
+ * Service Catalog: Central access point for all repositories.
+ * Provides singleton instances backed by Prisma.
+ */
+import { PrismaClient } from '@prisma/client';
+import {
+  ThemeRepository,
+  ActionRepository,
+  TaskRepository,
+  VetoRepository,
+} from '../domain/repositories';
+import {
+  PrismaThemeRepository,
+  PrismaActionRepository,
+  PrismaTaskRepository,
+  PrismaVetoRepository,
+} from '../repositories/prisma';
+
+// Singleton Prisma client
+const prisma = new PrismaClient();
+
+// Singleton repository instances
+let _themes: ThemeRepository | null = null;
+let _actions: ActionRepository | null = null;
+let _tasks: TaskRepository | null = null;
+let _vetoes: VetoRepository | null = null;
+
+export const catalog = {
+  get themes(): ThemeRepository {
+    if (!_themes) _themes = new PrismaThemeRepository(prisma);
+    return _themes;
+  },
+
+  get actions(): ActionRepository {
+    if (!_actions) _actions = new PrismaActionRepository(prisma);
+    return _actions;
+  },
+
+  get tasks(): TaskRepository {
+    if (!_tasks) _tasks = new PrismaTaskRepository(prisma);
+    return _tasks;
+  },
+
+  get vetoes(): VetoRepository {
+    if (!_vetoes) _vetoes = new PrismaVetoRepository(prisma);
+    return _vetoes;
+  },
+
+  /** Access to raw Prisma client for complex queries or migrations */
+  get prisma(): PrismaClient {
+    return prisma;
+  },
+};
+</file>
+
+<file path="src/services/eventService.ts">
+import { Prisma } from '@prisma/client'
+import db from '../lib/db'
+
+const prisma = db
+
+// v4 EventType enum values from schema
+type EventType = 
+  | 'gate_started' | 'gate_completed' | 'gate_failed'
+  | 'experiment_started' | 'experiment_completed' | 'experiment_failed' | 'experiment_pivoted'
+  | 'criteria_graded'
+  | 'routine_started' | 'routine_replaced'
+  | 'ops_started' | 'ops_completed'
+  | 'veto_added' | 'veto_violated'
+  | 'time_logged'
+  | 'week_planned'
+  | 'season_started' | 'season_ended'
+
+export interface LogEventInput {
+  userId: number
+  eventType: EventType
+  cardId?: number
+  payload?: Record<string, unknown>
+  idempotencyKey?: string
+}
+
+export class EventService {
+  /**
+   * Log a new event
+   */
+  async log(data: LogEventInput) {
+    // Check for idempotency
+    if (data.idempotencyKey) {
+      const existing = await prisma.event.findFirst({
+        where: {
+          userId: data.userId,
+          idempotencyKey: data.idempotencyKey,
+        },
+      })
+
+      if (existing) {
+        return existing
+      }
+    }
+
+    return prisma.event.create({
+      data: {
+        userId: data.userId,
+        eventType: data.eventType,
+        cardId: data.cardId,
+        payload: (data.payload as Prisma.InputJsonValue) ?? {},
+        idempotencyKey: data.idempotencyKey,
+      },
+    })
+  }
+
+  /**
+   * Get events for a specific card
+   */
+  async getByCard(cardId: number, userId: number) {
+    return prisma.event.findMany({
+      where: {
+        cardId,
+        userId,
+      },
+      orderBy: {
+        occurredAt: 'desc',
+      },
+    })
+  }
+
+  /**
+   * Get events by type for a user
+   */
+  async getByType(userId: number, eventType: EventType) {
+    return prisma.event.findMany({
+      where: {
+        userId,
+        eventType,
+      },
+      orderBy: {
+        occurredAt: 'desc',
+      },
+    })
+  }
+
+  /**
+   * Get events within a time range
+   */
+  async getByTimeRange(userId: number, start: Date, end: Date) {
+    return prisma.event.findMany({
+      where: {
+        userId,
+        occurredAt: {
+          gte: start,
+          lte: end,
+        },
+      },
+      orderBy: {
+        occurredAt: 'desc',
+      },
+    })
+  }
+
+  /**
+   * Get recent events for a user
+   */
+  async getRecent(userId: number, limit: number = 50) {
+    return prisma.event.findMany({
+      where: { userId },
+      orderBy: { occurredAt: 'desc' },
+      take: limit,
+    })
+  }
+
+  /**
+   * Get event by ID
+   */
+  async getById(id: bigint, userId: number) {
+    return prisma.event.findFirst({
+      where: {
+        id,
+        userId,
+      },
+    })
+  }
+
+  /**
+   * Calculate condition score for a theme using exponential decay (τ = 7 days)
+   * Formula: 100 * SUM(minutes * e^(-days/7)) / SUM(60 * e^(-days/7))
+   * This gives a score where 60 minutes/day = 100%
+   */
+  async getThemeCondition(themeId: number, userId: number): Promise<{ conditionScore: number; lastActivity: Date | null }> {
+    const thirtyDaysAgo = new Date()
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+
+    // Get all time_logged events for this theme and its children
+    const descendants = await this.getThemeDescendants(themeId, userId)
+    const cardIds = [themeId, ...descendants.map(d => d.id)]
+
+    const events = await prisma.event.findMany({
+      where: {
+        userId,
+        eventType: 'time_logged',
+        cardId: { in: cardIds },
+        occurredAt: { gte: thirtyDaysAgo },
+      },
+      orderBy: { occurredAt: 'desc' },
+    })
+
+    if (events.length === 0) {
+      return { conditionScore: 0, lastActivity: null }
+    }
+
+    const now = new Date()
+    const TAU = 7 // decay constant in days
+
+    let weightedMinutes = 0
+    let weightedBaseline = 0
+
+    for (const event of events) {
+      const payload = event.payload as { minutes?: number; date?: string }
+      const minutes = payload.minutes || 0
+      
+      // Use event date from payload if available, otherwise use occurredAt
+      const eventDate = payload.date ? new Date(payload.date) : event.occurredAt
+      const daysSince = (now.getTime() - eventDate.getTime()) / (1000 * 60 * 60 * 24)
+      
+      const decayFactor = Math.exp(-daysSince / TAU)
+      weightedMinutes += minutes * decayFactor
+      weightedBaseline += 60 * decayFactor // 60 minutes/day is the baseline
+    }
+
+    const conditionScore = weightedBaseline > 0 
+      ? Math.min(100, Math.round(100 * weightedMinutes / weightedBaseline))
+      : 0
+
+    return {
+      conditionScore,
+      lastActivity: events[0]?.occurredAt || null,
+    }
+  }
+
+  /**
+   * Get all condition scores for all themes for a user (optimized batch query)
+   */
+  async getAllThemeConditions(userId: number): Promise<Map<number, { conditionScore: number; lastActivity: Date | null }>> {
+    const themes = await prisma.card.findMany({
+      where: { userId, unitType: 'THEME' },
+      select: { id: true },
+    })
+
+    if (themes.length === 0) {
+      return new Map()
+    }
+
+    const themeIds = themes.map((t: { id: number }) => t.id)
+    
+    // Get all descendants for all themes in one batch
+    const descendantsMap = await this.getAllThemeDescendantsBatch(themeIds, userId)
+    
+    // Collect all card IDs we need events for
+    const allCardIds = new Set<number>()
+    for (const themeId of themeIds) {
+      allCardIds.add(themeId)
+      const descendants = descendantsMap.get(themeId) || []
+      descendants.forEach(id => allCardIds.add(id))
+    }
+
+    // Get all time_logged events in one query
+    const thirtyDaysAgo = new Date()
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+
+    const events = await prisma.event.findMany({
+      where: {
+        userId,
+        eventType: 'time_logged',
+        cardId: { in: Array.from(allCardIds) },
+        occurredAt: { gte: thirtyDaysAgo },
+      },
+      orderBy: { occurredAt: 'desc' },
+    })
+
+    // Group events by card ID
+    const eventsByCard = new Map<number, typeof events>()
+    for (const event of events) {
+      if (event.cardId) {
+        const cardEvents = eventsByCard.get(event.cardId) || []
+        cardEvents.push(event)
+        eventsByCard.set(event.cardId, cardEvents)
+      }
+    }
+
+    // Calculate condition for each theme
+    const conditions = new Map<number, { conditionScore: number; lastActivity: Date | null }>()
+    const now = new Date()
+    const TAU = 7
+
+    for (const themeId of themeIds) {
+      const cardIds = [themeId, ...(descendantsMap.get(themeId) || [])]
+      
+      // Collect all events for this theme's cards
+      const themeEvents: typeof events = []
+      for (const cardId of cardIds) {
+        const cardEvents = eventsByCard.get(cardId) || []
+        themeEvents.push(...cardEvents)
+      }
+
+      if (themeEvents.length === 0) {
+        conditions.set(themeId, { conditionScore: 0, lastActivity: null })
+        continue
+      }
+
+      // Sort by date to get most recent
+      themeEvents.sort((a: { occurredAt: Date }, b: { occurredAt: Date }) => b.occurredAt.getTime() - a.occurredAt.getTime())
+
+      let weightedMinutes = 0
+      let weightedBaseline = 0
+
+      for (const event of themeEvents) {
+        const payload = event.payload as { minutes?: number; date?: string }
+        const minutes = payload.minutes || 0
+        const eventDate = payload.date ? new Date(payload.date) : event.occurredAt
+        const daysSince = (now.getTime() - eventDate.getTime()) / (1000 * 60 * 60 * 24)
+        const decayFactor = Math.exp(-daysSince / TAU)
+        weightedMinutes += minutes * decayFactor
+        weightedBaseline += 60 * decayFactor
+      }
+
+      const conditionScore = weightedBaseline > 0 
+        ? Math.min(100, Math.round(100 * weightedMinutes / weightedBaseline))
+        : 0
+
+      conditions.set(themeId, {
+        conditionScore,
+        lastActivity: themeEvents[0]?.occurredAt || null,
+      })
+    }
+
+    return conditions
+  }
+
+  /**
+   * Get all descendant cards of a theme (gates, experiments, routines, ops, tasks, criteria)
+   * Optimized: single recursive CTE query
+   */
+  private async getThemeDescendants(themeId: number, userId: number): Promise<{ id: number }[]> {
+    // Use raw SQL with recursive CTE for efficiency
+    const result = await prisma.$queryRaw<{ id: number }[]>`
+      WITH RECURSIVE descendants AS (
+        SELECT id FROM "Card" WHERE "parentId" = ${themeId} AND "userId" = ${userId}
+        UNION ALL
+        SELECT c.id FROM "Card" c
+        INNER JOIN descendants d ON c."parentId" = d.id
+        WHERE c."userId" = ${userId}
+      )
+      SELECT id FROM descendants
+    `
+    return result
+  }
+
+  /**
+   * Get all descendant IDs for multiple themes at once (batch operation)
+   */
+  private async getAllThemeDescendantsBatch(themeIds: number[], userId: number): Promise<Map<number, number[]>> {
+    if (themeIds.length === 0) return new Map()
+
+    // Get all cards that could be descendants
+    const allCards = await prisma.card.findMany({
+      where: { userId },
+      select: { id: true, parentId: true },
+    })
+
+    // Build parent->children map
+    const childrenMap = new Map<number, number[]>()
+    for (const card of allCards) {
+      if (card.parentId) {
+        const children = childrenMap.get(card.parentId) || []
+        children.push(card.id)
+        childrenMap.set(card.parentId, children)
+      }
+    }
+
+    // For each theme, collect all descendants
+    const result = new Map<number, number[]>()
+    
+    for (const themeId of themeIds) {
+      const descendants: number[] = []
+      const queue = [themeId]
+      
+      while (queue.length > 0) {
+        const current = queue.shift()!
+        const children = childrenMap.get(current) || []
+        for (const childId of children) {
+          descendants.push(childId)
+          queue.push(childId)
+        }
+      }
+      
+      result.set(themeId, descendants)
+    }
+
+    return result
+  }
+
+  /**
+   * Log time spent on a card (v4 API)
+   */
+  async logTime(userId: number, cardId: number, minutes: number, date?: string) {
+    return this.log({
+      userId,
+      eventType: 'time_logged',
+      cardId,
+      payload: {
+        minutes,
+        date: date || new Date().toISOString().split('T')[0],
+      },
+    })
+  }
+
+  /**
+   * Grade criteria for an action (season grading)
+   * Creates an immutable event with the full grading snapshot
+   */
+  async gradeSeasonCriteria(
+    userId: number,
+    cardId: number,
+    gradingType: 'mid_season' | 'end_season',
+    results: { criterion: string; passed: boolean }[],
+    notes?: string
+  ) {
+    const overallPassed = results.every(r => r.passed)
+    
+    return this.log({
+      userId,
+      eventType: 'criteria_graded',
+      cardId,
+      payload: {
+        grading_type: gradingType,
+        results,
+        overall_passed: overallPassed,
+        notes: notes || null,
+      },
+    })
+  }
+
+  /**
+   * @deprecated Use gradeSeasonCriteria instead
+   */
+  async gradeCriteria(userId: number, criteriaId: number, passed: boolean) {
+    console.warn('gradeCriteria is deprecated. Use gradeSeasonCriteria instead.')
+    return this.log({
+      userId,
+      eventType: 'criteria_graded',
+      cardId: criteriaId,
+      payload: { passed },
+    })
+  }
+
+  /**
+   * Log veto violation
+   */
+  async logVetoViolation(userId: number, vetoId: number, reason?: string) {
+    return this.log({
+      userId,
+      eventType: 'veto_violated',
+      cardId: vetoId,
+      payload: { reason },
+    })
+  }
+
+  /**
+   * Log gate lifecycle events
+   */
+  async logGateStarted(userId: number, cardId: number) {
+    return this.log({ userId, eventType: 'gate_started', cardId, payload: {} })
+  }
+
+  async logGateCompleted(userId: number, cardId: number) {
+    return this.log({ userId, eventType: 'gate_completed', cardId, payload: {} })
+  }
+
+  async logGateFailed(userId: number, cardId: number) {
+    return this.log({ userId, eventType: 'gate_failed', cardId, payload: {} })
+  }
+
+  /**
+   * Log experiment lifecycle events
+   */
+  async logExperimentStarted(userId: number, cardId: number) {
+    return this.log({ userId, eventType: 'experiment_started', cardId, payload: {} })
+  }
+
+  async logExperimentCompleted(userId: number, cardId: number) {
+    return this.log({ userId, eventType: 'experiment_completed', cardId, payload: {} })
+  }
+
+  async logExperimentFailed(userId: number, cardId: number) {
+    return this.log({ userId, eventType: 'experiment_failed', cardId, payload: {} })
+  }
+
+  async logExperimentPivoted(userId: number, cardId: number) {
+    return this.log({ userId, eventType: 'experiment_pivoted', cardId, payload: {} })
+  }
+
+  /**
+   * Log routine lifecycle events
+   */
+  async logRoutineStarted(userId: number, cardId: number) {
+    return this.log({ userId, eventType: 'routine_started', cardId, payload: {} })
+  }
+
+  async logRoutineReplaced(userId: number, cardId: number) {
+    return this.log({ userId, eventType: 'routine_replaced', cardId, payload: {} })
+  }
+
+  /**
+   * Log ops lifecycle events
+   */
+  async logOpsStarted(userId: number, cardId: number) {
+    return this.log({ userId, eventType: 'ops_started', cardId, payload: {} })
+  }
+
+  async logOpsCompleted(userId: number, cardId: number) {
+    return this.log({ userId, eventType: 'ops_completed', cardId, payload: {} })
+  }
+
+  /**
+   * Get actual hours logged for a theme (Property 6: Time Aggregation)
+   * Sum of time_logged events for theme and all descendant cards
+   */
+  async getThemeActualHours(themeId: number, userId: number, seasonId?: number): Promise<number> {
+    let startDate: Date | undefined
+    let endDate: Date | undefined
+
+    if (seasonId) {
+      const season = await prisma.season.findFirst({ where: { id: seasonId, userId } })
+      if (season) {
+        startDate = season.startDate
+        endDate = new Date(season.startDate)
+        endDate.setDate(endDate.getDate() + season.durationWeeks * 7)
+      }
+    }
+
+    const result = await prisma.$queryRaw<any[]>`
+      WITH RECURSIVE descendants AS (
+        SELECT id FROM "cards" WHERE id = ${themeId} AND "user_id" = ${userId}
+        UNION ALL
+        SELECT c.id FROM "cards" c
+        INNER JOIN descendants d ON c."parent_id" = d.id
+        WHERE c."user_id" = ${userId}
+      )
+      SELECT COALESCE(SUM((payload->>'minutes')::float), 0) / 60.0 as hours
+      FROM "events"
+      WHERE "user_id" = ${userId}
+        AND "event_type" = 'time_logged'
+        AND "card_id" IN (SELECT id FROM descendants)
+        ${startDate && endDate ? Prisma.raw(`AND "occurred_at" BETWEEN '${startDate.toISOString()}' AND '${endDate.toISOString()}'`) : Prisma.raw('')}
+    `
+
+    return Number(result[0]?.hours || 0)
+  }
+
+  /**
+   * Get actual hours for all themes for a user (optimized batch query)
+   */
+  async getAllThemeHours(userId: number, seasonId?: number): Promise<Map<number, number>> {
+    let startDate: Date | undefined
+    let endDate: Date | undefined
+
+    if (seasonId) {
+      const season = await prisma.season.findFirst({ where: { id: seasonId, userId } })
+      if (season) {
+        startDate = season.startDate
+        endDate = new Date(season.startDate)
+        endDate.setDate(endDate.getDate() + season.durationWeeks * 7)
+      }
+    }
+
+    const result = await prisma.$queryRaw<any[]>`
+      WITH RECURSIVE descendants AS (
+        -- Base case: all themes for the user
+        SELECT id as theme_id, id as card_id
+        FROM "cards"
+        WHERE "user_id" = ${userId} AND "unit_type" = 'THEME'
+        
+        UNION ALL
+        
+        -- Recursive step: get children of cards already in descendants
+        SELECT d.theme_id, c.id
+        FROM "cards" c
+        INNER JOIN descendants d ON c."parent_id" = d.card_id
+        WHERE c."user_id" = ${userId}
+      )
+      SELECT 
+        d.theme_id,
+        COALESCE(SUM((e.payload->>'minutes')::float), 0) / 60.0 as actual_hours
+      FROM descendants d
+      LEFT JOIN "events" e ON d.card_id = e.card_id
+      WHERE e."user_id" = ${userId}
+        AND e."event_type" = 'time_logged'
+        ${startDate && endDate ? Prisma.raw(`AND e."occurred_at" BETWEEN '${startDate.toISOString()}' AND '${endDate.toISOString()}'`) : Prisma.raw('')}
+      GROUP BY d.theme_id
+    `
+
+    const hoursMap = new Map<number, number>()
+    result.forEach((row: any) => {
+      hoursMap.set(Number(row.theme_id), Number(row.actual_hours || 0))
+    })
+
+    // Ensure all themes are present in the map, even if they have 0 hours
+    const themes = await prisma.card.findMany({
+      where: { userId, unitType: 'THEME' },
+      select: { id: true },
+    })
+
+    for (const theme of themes) {
+      if (!hoursMap.has(theme.id)) {
+        hoursMap.set(theme.id, 0)
+      }
+    }
+
+    return hoursMap
+  }
+}
+
+export const eventService = new EventService()
+</file>
+
+<file path="src/services/seasonService.ts">
+import { PrismaClient, Season } from '@prisma/client'
+
+const prisma = new PrismaClient()
+
+export interface CreateSeasonInput {
+  userId: number
+  name: string
+  startDate: Date
+  durationWeeks: number
+  utilityRate?: number
+  themeAllocations?: Record<string, number>
+}
+
+export interface SeasonWithComputed extends Season {
+  endDate: Date
+  totalHours: number
+}
+
+export class SeasonService {
+  /**
+   * Compute end date and total hours for a season
+   */
+  private computeFields(season: Season): SeasonWithComputed {
+    const endDate = new Date(season.startDate)
+    endDate.setDate(endDate.getDate() + season.durationWeeks * 7)
+    
+    const totalHours = season.durationWeeks * season.utilityRate
+
+    return {
+      ...season,
+      endDate,
+      totalHours,
+    }
+  }
+
+  /**
+   * Create a new season
+   */
+  async create(data: CreateSeasonInput): Promise<SeasonWithComputed> {
+    const season = await prisma.season.create({
+      data: {
+        userId: data.userId,
+        name: data.name,
+        startDate: data.startDate,
+        durationWeeks: data.durationWeeks,
+        utilityRate: data.utilityRate ?? 40.0,
+        themeAllocations: data.themeAllocations ?? {},
+        isActive: false,
+      },
+    })
+
+    return this.computeFields(season)
+  }
+
+  /**
+   * Get a season by ID
+   */
+  async getById(id: number, userId: number): Promise<SeasonWithComputed | null> {
+    const season = await prisma.season.findFirst({
+      where: {
+        id,
+        userId,
+      },
+    })
+
+    return season ? this.computeFields(season) : null
+  }
+
+  /**
+   * Get the active season for a user
+   */
+  async getActive(userId: number): Promise<SeasonWithComputed | null> {
+    const season = await prisma.season.findFirst({
+      where: {
+        userId,
+        isActive: true,
+      },
+    })
+
+    return season ? this.computeFields(season) : null
+  }
+
+  /**
+   * Activate a season (deactivates any previously active season)
+   */
+  async activate(id: number, userId: number): Promise<SeasonWithComputed> {
+    // Verify ownership
+    const season = await this.getById(id, userId)
+    if (!season) {
+      throw new Error('Season not found')
+    }
+
+    // Deactivate all other seasons for this user
+    await prisma.season.updateMany({
+      where: {
+        userId,
+        isActive: true,
+      },
+      data: {
+        isActive: false,
+      },
+    })
+
+    // Activate the requested season
+    const updated = await prisma.season.update({
+      where: { id },
+      data: { isActive: true },
+    })
+
+    return this.computeFields(updated)
+  }
+
+  /**
+   * Deactivate a season
+   */
+  async deactivate(id: number, userId: number): Promise<SeasonWithComputed> {
+    // Verify ownership
+    const season = await this.getById(id, userId)
+    if (!season) {
+      throw new Error('Season not found')
+    }
+
+    const updated = await prisma.season.update({
+      where: { id },
+      data: { isActive: false },
+    })
+
+    return this.computeFields(updated)
+  }
+
+  /**
+   * Get all seasons for a user
+   */
+  async getAll(userId: number): Promise<SeasonWithComputed[]> {
+    const seasons = await prisma.season.findMany({
+      where: { userId },
+      orderBy: { startDate: 'desc' },
+    })
+
+    return seasons.map(s => this.computeFields(s))
+  }
+
+  /**
+   * Update a season
+   */
+  async update(
+    id: number,
+    userId: number,
+    data: Partial<Omit<CreateSeasonInput, 'userId'>>
+  ): Promise<SeasonWithComputed> {
+    // Verify ownership
+    const existing = await this.getById(id, userId)
+    if (!existing) {
+      throw new Error('Season not found')
+    }
+
+    const updated = await prisma.season.update({
+      where: { id },
+      data: {
+        ...(data.name !== undefined && { name: data.name }),
+        ...(data.startDate !== undefined && { startDate: data.startDate }),
+        ...(data.durationWeeks !== undefined && { durationWeeks: data.durationWeeks }),
+        ...(data.utilityRate !== undefined && { utilityRate: data.utilityRate }),
+        ...(data.themeAllocations !== undefined && { themeAllocations: data.themeAllocations }),
+      },
+    })
+
+    return this.computeFields(updated)
+  }
+
+  /**
+   * Delete a season
+   */
+  async delete(id: number, userId: number): Promise<void> {
+    // Verify ownership
+    const existing = await this.getById(id, userId)
+    if (!existing) {
+      throw new Error('Season not found')
+    }
+
+    await prisma.season.delete({
+      where: { id },
+    })
+  }
+
+  /**
+   * Calculate theme budget based on season hours and allocation weight
+   * Property 7: Season Budget Calculation
+   * theme_budget = season_hours × weight
+   */
+  calculateThemeBudget(seasonHours: number, weight: number): number {
+    return seasonHours * weight
+  }
+}
+
+export const seasonService = new SeasonService()
+</file>
+
+<file path="src/services/userService.ts">
+import prisma from '../lib/db'
+
+export interface UserSettings {
+  maxThemes: number
+  maxGatesPerTheme: number
+  maxExperimentsPerTheme: number
+  maxRoutinesPerTheme: number
+  maxOpsPerTheme: number
+  minCriteriaPerExperiment: number
+  minCriteriaPerGate: number
+  defaultSeasonWeeks: number
+  defaultLagWeeks: number
+  // Agent configuration
+  agentBuiltinTools: string[]
+  agentAllowedTools: string[]
+  agentAllowBash: boolean
+  agentPermissionMode: 'default' | 'acceptEdits' | 'bypassPermissions'
+  agentSystemPrompt: string
+}
+
+// All available kaizen-db MCP tools
+export const KAIZEN_DB_TOOLS = {
+  'mcp__kaizen-db__list_cards': { name: 'List Cards', description: 'Query cards with filters', category: 'read' },
+  'mcp__kaizen-db__get_card': { name: 'Get Card', description: 'Get a single card with children', category: 'read' },
+  'mcp__kaizen-db__get_active_season': { name: 'Get Season', description: 'Get current active season', category: 'read' },
+  'mcp__kaizen-db__get_recent_events': { name: 'Get Events', description: 'View recent activity', category: 'read' },
+  'mcp__kaizen-db__create_card': { name: 'Create Card', description: 'Create new cards', category: 'write' },
+  'mcp__kaizen-db__update_card': { name: 'Update Card', description: 'Update card properties', category: 'write' },
+  'mcp__kaizen-db__delete_card': { name: 'Delete Card', description: 'Delete cards', category: 'write' },
+} as const
+
+export type KaizenDbTool = keyof typeof KAIZEN_DB_TOOLS
+
+export const BUILT_IN_TOOLS = {
+  'Read': { name: 'Read Files', description: 'Read file contents', category: 'builtin', safe: true },
+  'Glob': { name: 'Glob Search', description: 'Find files by pattern', category: 'builtin', safe: true },
+  'Grep': { name: 'Grep Search', description: 'Search file contents', category: 'builtin', safe: true },
+  'Edit': { name: 'Edit Files', description: 'Edit file contents', category: 'builtin', safe: false },
+  'Write': { name: 'Write Files', description: 'Create/overwrite files', category: 'builtin', safe: false },
+} as const
+
+const DEFAULT_AGENT_SYSTEM_PROMPT = `You are the Kaizen OS Agent, a personal productivity assistant.
+
+Use the kaizen-db tools to interact with the database:
+- list_cards: Query cards with filters
+- get_card: Get a single card with children
+- create_card: Create new cards (themes, actions, tasks, etc.)
+- update_card: Update card properties
+- delete_card: Delete cards (no children allowed)
+- get_active_season: Get current season
+- get_recent_events: View recent activity
+
+NEVER use bash for database operations. All database access must go through the kaizen-db tools.
+
+Card hierarchy: THEME → ACTION_GATE/EXPERIMENT/ROUTINE/OPS → TASK
+Themes can also have VETO children directly.
+Gates and experiments have a criteria[] field for success criteria.`
+
+export const DEFAULT_USER_SETTINGS: UserSettings = {
+  maxThemes: 4,
+  maxGatesPerTheme: 2,
+  maxExperimentsPerTheme: 1,
+  maxRoutinesPerTheme: 5,
+  maxOpsPerTheme: 3,
+  minCriteriaPerExperiment: 2,
+  minCriteriaPerGate: 1,
+  defaultSeasonWeeks: 11,
+  defaultLagWeeks: 6,
+  // Default: safe built-ins + all read MCP tools
+  agentBuiltinTools: ['Read', 'Glob', 'Grep'],
+  agentAllowedTools: [
+    'mcp__kaizen-db__list_cards',
+    'mcp__kaizen-db__get_card',
+    'mcp__kaizen-db__get_active_season',
+    'mcp__kaizen-db__get_recent_events',
+  ],
+  agentAllowBash: false,
+  agentPermissionMode: 'acceptEdits',
+  agentSystemPrompt: DEFAULT_AGENT_SYSTEM_PROMPT,
+}
+
+export const userService = {
+  async getSettings(userId: number): Promise<UserSettings> {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { settings: true },
+    })
+
+    if (!user) {
+      throw new Error('User not found')
+    }
+
+    return {
+      ...DEFAULT_USER_SETTINGS,
+      ...(user.settings as unknown as Partial<UserSettings>),
+    }
+  },
+
+  async updateSettings(userId: number, settings: Partial<UserSettings>): Promise<UserSettings> {
+    const currentSettings = await this.getSettings(userId)
+    const newSettings = { ...currentSettings, ...settings }
+
+    const user = await prisma.user.update({
+      where: { id: userId },
+      data: {
+        settings: newSettings as Parameters<typeof prisma.user.update>[0]['data']['settings'],
+      },
+    })
+
+    return user.settings as unknown as UserSettings
+  },
+}
+</file>
+
+<file path="src/types/index.ts">
+// Core type definitions for Kaizen OS
+
+// Enums matching database types (v4 schema)
+export type TaskStatus = 'in_progress' | 'not_started' | 'completed' | 'backlog';
+export type UnitType = 'THEME' | 'ACTION_GATE' | 'ACTION_EXPERIMENT' | 'ACTION_ROUTINE' | 'ACTION_OPS' | 'TASK' | 'VETO';
+export type EventType =
+  | 'gate_started'
+  | 'gate_completed'
+  | 'gate_failed'
+  | 'experiment_started'
+  | 'experiment_completed'
+  | 'experiment_failed'
+  | 'experiment_pivoted'
+  | 'criteria_graded'
+  | 'routine_started'
+  | 'routine_replaced'
+  | 'ops_started'
+  | 'ops_completed'
+  | 'veto_added'
+  | 'veto_violated'
+  | 'time_logged'
+  | 'week_planned'
+  | 'season_started'
+  | 'season_ended';
+
+// Core entity interfaces
+export interface Card {
+  id: number;
+  userId: number;
+  parentId: number | null;
+  title: string;
+  description: string | null;
+  targetDate: Date | null;
+  completionDate: Date | null;
+  startDate: Date | null;
+  status: TaskStatus;
+  unitType: UnitType;
+  seasonId: number | null;
+  lagWeeks: number | null;
+  criteria: string[];
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// Type guards for Card types
+export const isTheme = (card: Card): boolean => card.unitType === 'THEME';
+export const isGate = (card: Card): boolean => card.unitType === 'ACTION_GATE';
+export const isExperiment = (card: Card): boolean => card.unitType === 'ACTION_EXPERIMENT';
+export const isRoutine = (card: Card): boolean => card.unitType === 'ACTION_ROUTINE';
+export const isOps = (card: Card): boolean => card.unitType === 'ACTION_OPS';
+export const isTask = (card: Card): boolean => card.unitType === 'TASK';
+export const isVeto = (card: Card): boolean => card.unitType === 'VETO';
+export const isAction = (card: Card): boolean => card.unitType.startsWith('ACTION_');
+
+export interface Season {
+  id: number;
+  userId: number;
+  name: string;
+  startDate: Date;
+  durationWeeks: number;
+  endDate: Date;
+  utilityRate: number;
+  totalHours: number;
+  themeAllocations: Record<string, number>; // { [themeId]: allocation (0-1) }
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface Event {
+  id: number;
+  userId: number;
+  eventType: EventType;
+  entryId: number | null;
+  payload: Record<string, unknown>;
+  occurredAt: Date;
+  idempotencyKey: string | null;
+}
+
+// Input DTOs
+export interface CreateCardInput {
+  userId: number;
+  parentId?: number;
+  title: string;
+  description?: string;
+  targetDate?: Date;
+  startDate?: Date;
+  status?: TaskStatus;
+  unitType: UnitType;
+  seasonId?: number;
+  lagWeeks?: number;
+  criteria?: string[];
+}
+
+export interface UpdateCardInput {
+  title?: string;
+  description?: string;
+  targetDate?: Date;
+  completionDate?: Date;
+  startDate?: Date;
+  status?: TaskStatus;
+  seasonId?: number;
+  lagWeeks?: number;
+  criteria?: string[];
+}
+
+export interface CreateSeasonInput {
+  userId: number;
+  name: string;
+  startDate: Date;
+  durationWeeks: number;
+  utilityRate?: number;
+}
+
+export interface LogEventInput {
+  userId: number;
+  eventType: EventType;
+  cardId?: number;
+  payload?: Record<string, unknown>;
+  idempotencyKey?: string;
+}
+
+// Legacy alias
+export interface LogEventInputLegacy {
+  userId: number;
+  eventType: EventType;
+  entryId?: number;
+  payload?: Record<string, unknown>;
+  idempotencyKey?: string;
+}
+
+// API Response types
+export interface ApiError {
+  error: {
+    code: string;
+    message: string;
+    details?: Record<string, string[]>;
+  };
+}
+
+// Helper type for unit type labels
+export const UNIT_TYPE_LABELS: Record<UnitType, string> = {
+  THEME: 'Theme',
+  ACTION_GATE: 'Gate',
+  ACTION_EXPERIMENT: 'Experiment',
+  ACTION_ROUTINE: 'Routine',
+  ACTION_OPS: 'Ops',
+  TASK: 'Task',
+  VETO: 'Veto',
+};
+
+export const STATUS_LABELS: Record<TaskStatus, string> = {
+  not_started: 'Not Started',
+  in_progress: 'In Progress',
+  completed: 'Completed',
+  backlog: 'Backlog',
+};
+
+// WIP Status interface for theme view (used by ActionRow component)
+export interface WipTypeStatus {
+  active: number;
+  max: number;
+  canAdd: boolean;
+}
+
+// All UnitType values for iteration/testing
+export const ALL_UNIT_TYPES: UnitType[] = [
+  'THEME',
+  'ACTION_GATE',
+  'ACTION_EXPERIMENT',
+  'ACTION_ROUTINE',
+  'ACTION_OPS',
+  'TASK',
+  'VETO',
+];
+
+// Action types subset
+export const ACTION_UNIT_TYPES: UnitType[] = [
+  'ACTION_GATE',
+  'ACTION_EXPERIMENT',
+  'ACTION_ROUTINE',
+  'ACTION_OPS',
+];
+</file>
+
+<file path="src/vite-env.d.ts">
+/// <reference types="vite/client" />
+
+declare module '*.css' {
+  const content: string
+  export default content
+}
+</file>
+
+</files>

@@ -1,0 +1,901 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kaizen OS - Weekly Review</title>
+  <style>
+    :root {
+      --color-sage: #8B9467;
+      --color-sage-light: rgba(139, 148, 103, 0.1);
+      --color-sage-border: rgba(139, 148, 103, 0.2);
+      --color-sage-border-light: rgba(139, 148, 103, 0.08);
+      --color-bg: #F5F1EB;
+      --color-card: rgba(254, 254, 254, 0.95);
+      --color-white: #FFFFFF;
+      --color-text-primary: #1A1A1A;
+      --color-text-secondary: #666666;
+      --color-text-muted: #999999;
+      --color-red: #E74C3C;
+      --color-green: #27AE60;
+      --color-orange: #F39C12;
+      --color-blue: #6B7FD7;
+      --color-purple: #9B59B6;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-size: 14px;
+      line-height: 1.5;
+      color: var(--color-text-primary);
+      background-color: var(--color-bg);
+      min-height: 100vh;
+    }
+
+    /* Header */
+    header {
+      padding: 16px 24px;
+      border-bottom: 1px solid var(--color-sage-border-light);
+      background: var(--color-card);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .header-left { display: flex; align-items: center; gap: 24px; }
+    .logo { font-size: 20px; font-weight: 600; color: var(--color-sage); }
+
+    .mode-indicator {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 16px;
+      background: linear-gradient(135deg, #FFF3E0, #FFE0B2);
+      border-radius: 20px;
+      border: 1px solid #FFE082;
+    }
+
+    .mode-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--color-orange);
+    }
+
+    .mode-text {
+      font-size: 13px;
+      font-weight: 600;
+      color: #E65100;
+    }
+
+    .header-right { display: flex; align-items: center; gap: 16px; }
+
+    .week-label {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--color-text-primary);
+    }
+
+    .btn-primary {
+      padding: 10px 20px;
+      border-radius: 10px;
+      border: none;
+      background: linear-gradient(135deg, var(--color-sage), #7a8359);
+      color: white;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(139, 148, 103, 0.3); }
+    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+    .btn-secondary {
+      padding: 10px 20px;
+      border-radius: 10px;
+      border: 1px solid var(--color-sage-border);
+      background: var(--color-white);
+      color: var(--color-text-primary);
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .btn-secondary:hover {
+      background: var(--color-sage-light);
+      border-color: var(--color-sage);
+    }
+
+    /* Main Layout */
+    main {
+      max-width: 1000px;
+      margin: 0 auto;
+      padding: 32px 24px;
+    }
+
+    /* Progress Steps */
+    .progress-steps {
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+      margin-bottom: 32px;
+    }
+
+    .progress-step {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .step-circle {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      font-weight: 600;
+      transition: all 0.3s ease;
+    }
+
+    .step-circle.completed {
+      background: var(--color-sage);
+      color: white;
+    }
+
+    .step-circle.active {
+      background: var(--color-white);
+      border: 2px solid var(--color-sage);
+      color: var(--color-sage);
+    }
+
+    .step-circle.pending {
+      background: var(--color-bg);
+      border: 2px solid var(--color-sage-border);
+      color: var(--color-text-muted);
+    }
+
+    .step-label {
+      font-size: 13px;
+      color: var(--color-text-secondary);
+    }
+
+    .step-label.active { color: var(--color-sage); font-weight: 600; }
+
+    .step-connector {
+      width: 40px;
+      height: 2px;
+      background: var(--color-sage-border);
+      margin: 0 8px;
+    }
+
+    .step-connector.completed { background: var(--color-sage); }
+
+    /* Summary Card */
+    .summary-card {
+      background: var(--color-card);
+      border-radius: 16px;
+      border: 1px solid var(--color-sage-border-light);
+      padding: 24px;
+      margin-bottom: 24px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
+    }
+
+    .summary-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+
+    .summary-title {
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--color-text-primary);
+    }
+
+    .summary-subtitle {
+      font-size: 13px;
+      color: var(--color-text-muted);
+      margin-top: 4px;
+    }
+
+    .summary-stats {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+    }
+
+    .stat-box {
+      background: var(--color-bg);
+      border-radius: 12px;
+      padding: 16px;
+      text-align: center;
+    }
+
+    .stat-box .stat-value {
+      font-size: 28px;
+      font-weight: 600;
+      color: var(--color-text-primary);
+      font-family: monospace;
+    }
+
+    .stat-box .stat-label {
+      font-size: 12px;
+      color: var(--color-text-muted);
+      margin-top: 4px;
+    }
+
+    .stat-box.highlight .stat-value { color: var(--color-sage); }
+    .stat-box.warning .stat-value { color: var(--color-orange); }
+    .stat-box.success .stat-value { color: var(--color-green); }
+
+    /* Classification Section */
+    .classification-section {
+      background: var(--color-card);
+      border-radius: 16px;
+      border: 1px solid var(--color-sage-border-light);
+      padding: 24px;
+      margin-bottom: 24px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
+    }
+
+    .section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+
+    .section-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--color-text-primary);
+    }
+
+    .section-badge {
+      background: var(--color-orange);
+      color: white;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 4px 12px;
+      border-radius: 12px;
+    }
+
+    .section-badge.success {
+      background: var(--color-green);
+    }
+
+    /* Event Classification Card */
+    .event-card {
+      background: var(--color-bg);
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 12px;
+      border: 1px solid var(--color-sage-border-light);
+      transition: all 0.2s ease;
+    }
+
+    .event-card:hover {
+      border-color: var(--color-sage-border);
+    }
+
+    .event-card.classified {
+      background: #E8F5E9;
+      border-color: rgba(39, 174, 96, 0.2);
+    }
+
+    .event-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 12px;
+    }
+
+    .event-info {
+      flex: 1;
+    }
+
+    .event-title {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--color-text-primary);
+      margin-bottom: 4px;
+    }
+
+    .event-meta {
+      font-size: 12px;
+      color: var(--color-text-muted);
+      display: flex;
+      gap: 12px;
+    }
+
+    .event-duration {
+      font-family: monospace;
+      background: var(--color-white);
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--color-text-secondary);
+    }
+
+    .event-status {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      font-weight: 500;
+    }
+
+    .event-status.pending { color: var(--color-orange); }
+    .event-status.classified { color: var(--color-green); }
+
+    .event-status-icon {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+    }
+
+    .event-status.pending .event-status-icon {
+      background: #FFF3E0;
+      color: var(--color-orange);
+    }
+
+    .event-status.classified .event-status-icon {
+      background: #E8F5E9;
+      color: var(--color-green);
+    }
+
+    /* Classification Options */
+    .classification-options {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .classification-suggestion {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px;
+      background: var(--color-white);
+      border-radius: 10px;
+      border: 1px solid var(--color-sage-border-light);
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .classification-suggestion:hover {
+      border-color: var(--color-sage);
+      background: var(--color-sage-light);
+    }
+
+    .classification-suggestion.selected {
+      border-color: var(--color-sage);
+      background: var(--color-sage-light);
+    }
+
+    .suggestion-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+    }
+
+    .suggestion-icon.routine { background: #E8F5E9; }
+    .suggestion-icon.gate { background: #E3F2FD; }
+    .suggestion-icon.experiment { background: #F3E5F5; }
+    .suggestion-icon.ops { background: #FFF3E0; }
+    .suggestion-icon.skip { background: #ECEFF1; }
+
+    .suggestion-content { flex: 1; }
+
+    .suggestion-title {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--color-text-primary);
+    }
+
+    .suggestion-meta {
+      font-size: 11px;
+      color: var(--color-text-muted);
+      margin-top: 2px;
+    }
+
+    .suggestion-confidence {
+      font-size: 11px;
+      color: var(--color-sage);
+      background: var(--color-sage-light);
+      padding: 2px 8px;
+      border-radius: 10px;
+    }
+
+    .suggestion-ai {
+      font-size: 10px;
+      color: var(--color-purple);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .suggestion-ai::before { content: "✨"; }
+
+    /* Remember Choice */
+    .remember-choice {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid var(--color-sage-border-light);
+    }
+
+    .remember-checkbox {
+      width: 18px;
+      height: 18px;
+      border-radius: 4px;
+      border: 2px solid var(--color-sage-border);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s ease;
+    }
+
+    .remember-checkbox.checked {
+      background: var(--color-sage);
+      border-color: var(--color-sage);
+      color: white;
+    }
+
+    .remember-label {
+      font-size: 12px;
+      color: var(--color-text-secondary);
+    }
+
+    /* Theme Summary Section */
+    .theme-summary {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 16px;
+    }
+
+    .theme-card {
+      background: var(--color-bg);
+      border-radius: 12px;
+      padding: 16px;
+      border: 1px solid var(--color-sage-border-light);
+    }
+
+    .theme-card-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .theme-color-bar {
+      width: 4px;
+      height: 24px;
+      border-radius: 2px;
+    }
+
+    .theme-color-bar.blue { background: var(--color-blue); }
+    .theme-color-bar.green { background: var(--color-green); }
+    .theme-color-bar.purple { background: var(--color-purple); }
+    .theme-color-bar.orange { background: var(--color-orange); }
+
+    .theme-name {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--color-text-primary);
+    }
+
+    .theme-hours {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 8px;
+    }
+
+    .theme-actual {
+      font-size: 24px;
+      font-weight: 600;
+      font-family: monospace;
+      color: var(--color-text-primary);
+    }
+
+    .theme-planned {
+      font-size: 13px;
+      color: var(--color-text-muted);
+    }
+
+    .theme-bar {
+      height: 6px;
+      background: var(--color-sage-light);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+
+    .theme-bar-fill {
+      height: 100%;
+      border-radius: 3px;
+    }
+
+    .theme-bar-fill.blue { background: var(--color-blue); }
+    .theme-bar-fill.green { background: var(--color-green); }
+    .theme-bar-fill.purple { background: var(--color-purple); }
+    .theme-bar-fill.orange { background: var(--color-orange); }
+
+    /* Actions Footer */
+    .actions-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 32px;
+      padding-top: 24px;
+      border-top: 1px solid var(--color-sage-border-light);
+    }
+
+    .actions-left {
+      display: flex;
+      gap: 12px;
+    }
+
+    .actions-right {
+      display: flex;
+      gap: 12px;
+    }
+
+    /* Empty State */
+    .empty-state {
+      text-align: center;
+      padding: 48px 24px;
+      color: var(--color-text-muted);
+    }
+
+    .empty-state-icon {
+      font-size: 48px;
+      margin-bottom: 16px;
+    }
+
+    .empty-state-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--color-text-secondary);
+      margin-bottom: 8px;
+    }
+
+    .empty-state-text {
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="header-left">
+      <div class="logo">Kaizen OS</div>
+      <div class="mode-indicator">
+        <div class="mode-dot"></div>
+        <span class="mode-text">Review Mode</span>
+      </div>
+    </div>
+    <div class="header-right">
+      <span class="week-label">Reviewing: Dec 23 - Dec 29, 2024</span>
+      <button class="btn-secondary">← Back to Calendar</button>
+    </div>
+  </header>
+
+  <main>
+    <!-- Progress Steps -->
+    <div class="progress-steps">
+      <div class="progress-step">
+        <div class="step-circle completed">✓</div>
+        <span class="step-label">Sync</span>
+      </div>
+      <div class="step-connector completed"></div>
+      <div class="progress-step">
+        <div class="step-circle active">2</div>
+        <span class="step-label active">Classify</span>
+      </div>
+      <div class="step-connector"></div>
+      <div class="progress-step">
+        <div class="step-circle pending">3</div>
+        <span class="step-label">Confirm</span>
+      </div>
+    </div>
+
+    <!-- Summary Card -->
+    <div class="summary-card">
+      <div class="summary-header">
+        <div>
+          <div class="summary-title">Week Summary</div>
+          <div class="summary-subtitle">28 events synced from Google Calendar</div>
+        </div>
+      </div>
+      <div class="summary-stats">
+        <div class="stat-box highlight">
+          <div class="stat-value">32h</div>
+          <div class="stat-label">Total Time</div>
+        </div>
+        <div class="stat-box success">
+          <div class="stat-value">24</div>
+          <div class="stat-label">Auto-Classified</div>
+        </div>
+        <div class="stat-box warning">
+          <div class="stat-value">4</div>
+          <div class="stat-label">Needs Review</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-value">85%</div>
+          <div class="stat-label">Coverage</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Classification Section -->
+    <div class="classification-section">
+      <div class="section-header">
+        <div class="section-title">Events Needing Classification</div>
+        <span class="section-badge">4 remaining</span>
+      </div>
+
+      <!-- Event 1 -->
+      <div class="event-card">
+        <div class="event-card-header">
+          <div class="event-info">
+            <div class="event-title">Team Standup</div>
+            <div class="event-meta">
+              <span>Monday, Dec 23</span>
+              <span>•</span>
+              <span>2:00 PM - 3:00 PM</span>
+            </div>
+          </div>
+          <span class="event-duration">1h</span>
+          <div class="event-status pending">
+            <span class="event-status-icon">?</span>
+            Pending
+          </div>
+        </div>
+        <div class="classification-options">
+          <div class="classification-suggestion selected">
+            <div class="suggestion-icon ops">📧</div>
+            <div class="suggestion-content">
+              <div class="suggestion-title">Ops → Work Admin</div>
+              <div class="suggestion-meta">Life Admin theme</div>
+            </div>
+            <span class="suggestion-ai">AI suggested</span>
+            <span class="suggestion-confidence">92%</span>
+          </div>
+          <div class="classification-suggestion">
+            <div class="suggestion-icon gate">🎯</div>
+            <div class="suggestion-content">
+              <div class="suggestion-title">Gate → MVP Launch</div>
+              <div class="suggestion-meta">Career theme</div>
+            </div>
+          </div>
+          <div class="classification-suggestion">
+            <div class="suggestion-icon skip">⏭️</div>
+            <div class="suggestion-content">
+              <div class="suggestion-title">Skip / Don't log</div>
+              <div class="suggestion-meta">Won't count toward any action</div>
+            </div>
+          </div>
+        </div>
+        <div class="remember-choice">
+          <div class="remember-checkbox checked">✓</div>
+          <span class="remember-label">Remember this choice for future "Team Standup" events</span>
+        </div>
+      </div>
+
+      <!-- Event 2 -->
+      <div class="event-card">
+        <div class="event-card-header">
+          <div class="event-info">
+            <div class="event-title">Client Call - Acme Corp</div>
+            <div class="event-meta">
+              <span>Thursday, Dec 26</span>
+              <span>•</span>
+              <span>10:00 AM - 11:00 AM</span>
+            </div>
+          </div>
+          <span class="event-duration">1h</span>
+          <div class="event-status pending">
+            <span class="event-status-icon">?</span>
+            Pending
+          </div>
+        </div>
+        <div class="classification-options">
+          <div class="classification-suggestion">
+            <div class="suggestion-icon gate">🎯</div>
+            <div class="suggestion-content">
+              <div class="suggestion-title">Gate → MVP Launch</div>
+              <div class="suggestion-meta">Career theme</div>
+            </div>
+            <span class="suggestion-ai">AI suggested</span>
+            <span class="suggestion-confidence">78%</span>
+          </div>
+          <div class="classification-suggestion">
+            <div class="suggestion-icon ops">📧</div>
+            <div class="suggestion-content">
+              <div class="suggestion-title">Ops → Client Relations</div>
+              <div class="suggestion-meta">Career theme</div>
+            </div>
+          </div>
+          <div class="classification-suggestion">
+            <div class="suggestion-icon skip">⏭️</div>
+            <div class="suggestion-content">
+              <div class="suggestion-title">Skip / Don't log</div>
+              <div class="suggestion-meta">Won't count toward any action</div>
+            </div>
+          </div>
+        </div>
+        <div class="remember-choice">
+          <div class="remember-checkbox"></div>
+          <span class="remember-label">Remember this choice for future "Client Call" events</span>
+        </div>
+      </div>
+
+      <!-- Event 3 -->
+      <div class="event-card classified">
+        <div class="event-card-header">
+          <div class="event-info">
+            <div class="event-title">1:1 with Manager</div>
+            <div class="event-meta">
+              <span>Friday, Dec 27</span>
+              <span>•</span>
+              <span>2:00 PM - 3:00 PM</span>
+            </div>
+          </div>
+          <span class="event-duration">1h</span>
+          <div class="event-status classified">
+            <span class="event-status-icon">✓</span>
+            Classified
+          </div>
+        </div>
+        <div class="classification-options">
+          <div class="classification-suggestion selected">
+            <div class="suggestion-icon ops">📧</div>
+            <div class="suggestion-content">
+              <div class="suggestion-title">Ops → Work Admin</div>
+              <div class="suggestion-meta">Life Admin theme</div>
+            </div>
+            <span class="suggestion-confidence">✓ Confirmed</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Event 4 -->
+      <div class="event-card">
+        <div class="event-card-header">
+          <div class="event-info">
+            <div class="event-title">Coffee with Alex</div>
+            <div class="event-meta">
+              <span>Friday, Dec 27</span>
+              <span>•</span>
+              <span>4:00 PM - 5:00 PM</span>
+            </div>
+          </div>
+          <span class="event-duration">1h</span>
+          <div class="event-status pending">
+            <span class="event-status-icon">?</span>
+            Pending
+          </div>
+        </div>
+        <div class="classification-options">
+          <div class="classification-suggestion">
+            <div class="suggestion-icon routine">🧘</div>
+            <div class="suggestion-content">
+              <div class="suggestion-title">Routine → Social</div>
+              <div class="suggestion-meta">Health theme</div>
+            </div>
+            <span class="suggestion-ai">AI suggested</span>
+            <span class="suggestion-confidence">65%</span>
+          </div>
+          <div class="classification-suggestion">
+            <div class="suggestion-icon skip">⏭️</div>
+            <div class="suggestion-content">
+              <div class="suggestion-title">Skip / Don't log</div>
+              <div class="suggestion-meta">Personal time, not tracked</div>
+            </div>
+          </div>
+        </div>
+        <div class="remember-choice">
+          <div class="remember-checkbox"></div>
+          <span class="remember-label">Remember this choice for future "Coffee with" events</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Theme Summary -->
+    <div class="classification-section">
+      <div class="section-header">
+        <div class="section-title">Hours by Theme</div>
+        <span class="section-badge success">Planned vs Actual</span>
+      </div>
+      <div class="theme-summary">
+        <div class="theme-card">
+          <div class="theme-card-header">
+            <div class="theme-color-bar blue"></div>
+            <div class="theme-name">Career</div>
+          </div>
+          <div class="theme-hours">
+            <span class="theme-actual">15h</span>
+            <span class="theme-planned">of 20h planned</span>
+          </div>
+          <div class="theme-bar">
+            <div class="theme-bar-fill blue" style="width: 75%"></div>
+          </div>
+        </div>
+
+        <div class="theme-card">
+          <div class="theme-card-header">
+            <div class="theme-color-bar green"></div>
+            <div class="theme-name">Health</div>
+          </div>
+          <div class="theme-hours">
+            <span class="theme-actual">10h</span>
+            <span class="theme-planned">of 10h planned</span>
+          </div>
+          <div class="theme-bar">
+            <div class="theme-bar-fill green" style="width: 100%"></div>
+          </div>
+        </div>
+
+        <div class="theme-card">
+          <div class="theme-card-header">
+            <div class="theme-color-bar purple"></div>
+            <div class="theme-name">Side Projects</div>
+          </div>
+          <div class="theme-hours">
+            <span class="theme-actual">5h</span>
+            <span class="theme-planned">of 6h planned</span>
+          </div>
+          <div class="theme-bar">
+            <div class="theme-bar-fill purple" style="width: 83%"></div>
+          </div>
+        </div>
+
+        <div class="theme-card">
+          <div class="theme-card-header">
+            <div class="theme-color-bar orange"></div>
+            <div class="theme-name">Life Admin</div>
+          </div>
+          <div class="theme-hours">
+            <span class="theme-actual">2h</span>
+            <span class="theme-planned">of 4h planned</span>
+          </div>
+          <div class="theme-bar">
+            <div class="theme-bar-fill orange" style="width: 50%"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Actions Footer -->
+    <div class="actions-footer">
+      <div class="actions-left">
+        <button class="btn-secondary">Auto-Classify Remaining</button>
+        <button class="btn-secondary">Skip All Unclassified</button>
+      </div>
+      <div class="actions-right">
+        <button class="btn-secondary">Save Draft</button>
+        <button class="btn-primary" disabled>Confirm & Log Time (1 pending)</button>
+      </div>
+    </div>
+  </main>
+</body>
+</html>

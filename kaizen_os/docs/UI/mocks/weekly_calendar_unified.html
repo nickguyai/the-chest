@@ -1,0 +1,995 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kaizen OS - Weekly Calendar</title>
+  <style>
+    :root {
+      --color-sage: #8B9467;
+      --color-sage-light: rgba(139, 148, 103, 0.1);
+      --color-sage-border: rgba(139, 148, 103, 0.2);
+      --color-sage-border-light: rgba(139, 148, 103, 0.08);
+      --color-bg: #F5F1EB;
+      --color-card: rgba(254, 254, 254, 0.95);
+      --color-white: #FFFFFF;
+      --color-text-primary: #1A1A1A;
+      --color-text-secondary: #666666;
+      --color-text-muted: #999999;
+      --color-red: #E74C3C;
+      --color-green: #27AE60;
+      --color-orange: #F39C12;
+      --color-blue: #6B7FD7;
+      --color-purple: #9B59B6;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-size: 14px;
+      line-height: 1.5;
+      color: var(--color-text-primary);
+      background-color: var(--color-bg);
+      min-height: 100vh;
+    }
+
+    /* Header */
+    header {
+      padding: 12px 24px;
+      border-bottom: 1px solid var(--color-sage-border-light);
+      background: var(--color-card);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .header-left { display: flex; align-items: center; gap: 20px; }
+    .logo { font-size: 20px; font-weight: 600; color: var(--color-sage); }
+
+    /* Mode Toggle */
+    .mode-toggle {
+      display: flex;
+      background: var(--color-bg);
+      border-radius: 10px;
+      padding: 4px;
+      gap: 4px;
+    }
+
+    .mode-btn {
+      padding: 8px 16px;
+      border-radius: 8px;
+      border: none;
+      background: transparent;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--color-text-secondary);
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .mode-btn:hover { background: rgba(255,255,255,0.5); }
+
+    .mode-btn.active {
+      background: var(--color-white);
+      color: var(--color-sage);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    }
+
+    .mode-btn.active.planning {
+      background: linear-gradient(135deg, var(--color-sage-light), rgba(139, 148, 103, 0.05));
+      border: 1px solid var(--color-sage-border);
+    }
+
+    .mode-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--color-sage);
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    .header-center { display: flex; align-items: center; gap: 16px; }
+
+    .week-nav {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .week-nav-btn {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      border: 1px solid var(--color-sage-border);
+      background: var(--color-white);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--color-text-secondary);
+      transition: all 0.2s ease;
+    }
+
+    .week-nav-btn:hover {
+      background: var(--color-sage-light);
+      border-color: var(--color-sage);
+    }
+
+    .week-label {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--color-text-primary);
+      min-width: 180px;
+      text-align: center;
+    }
+
+    .header-right { display: flex; align-items: center; gap: 12px; }
+
+    .btn-primary {
+      padding: 10px 20px;
+      border-radius: 10px;
+      border: none;
+      background: linear-gradient(135deg, var(--color-sage), #7a8359);
+      color: white;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(139, 148, 103, 0.3); }
+
+    .btn-secondary {
+      padding: 10px 16px;
+      border-radius: 10px;
+      border: 1px solid var(--color-sage-border);
+      background: var(--color-white);
+      color: var(--color-text-primary);
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .btn-secondary:hover {
+      background: var(--color-sage-light);
+      border-color: var(--color-sage);
+    }
+
+    .btn-icon {
+      padding: 10px;
+      border-radius: 10px;
+      border: 1px solid var(--color-sage-border);
+      background: var(--color-white);
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .btn-icon:hover {
+      background: var(--color-sage-light);
+    }
+
+    /* Main Layout */
+    main {
+      display: grid;
+      height: calc(100vh - 57px);
+      transition: grid-template-columns 0.3s ease;
+    }
+
+    main.view-mode {
+      grid-template-columns: 1fr 300px;
+    }
+
+    main.planning-mode {
+      grid-template-columns: 260px 1fr 300px;
+    }
+
+    /* Left Panel - Building Blocks (Planning only) */
+    .left-panel {
+      background: var(--color-card);
+      border-right: 1px solid var(--color-sage-border-light);
+      display: none;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    main.planning-mode .left-panel { display: flex; }
+
+    .panel-header {
+      padding: 16px;
+      border-bottom: 1px solid var(--color-sage-border-light);
+    }
+
+    .panel-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--color-text-primary);
+    }
+
+    .panel-subtitle {
+      font-size: 11px;
+      color: var(--color-text-muted);
+      margin-top: 2px;
+    }
+
+    .panel-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px;
+    }
+
+    /* Drag Sections */
+    .drag-section { margin-bottom: 16px; }
+
+    .drag-section-title {
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--color-text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 8px;
+      padding: 0 4px;
+    }
+
+    .drag-item {
+      background: var(--color-bg);
+      border-radius: 8px;
+      padding: 10px;
+      margin-bottom: 6px;
+      border: 1px solid var(--color-sage-border-light);
+      cursor: grab;
+      transition: all 0.2s ease;
+    }
+
+    .drag-item:hover {
+      border-color: var(--color-sage);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    }
+
+    .drag-item:active { cursor: grabbing; }
+
+    .drag-item .item-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .drag-item .item-icon {
+      width: 20px;
+      height: 20px;
+      border-radius: 5px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      flex-shrink: 0;
+    }
+
+    .item-icon.routine { background: #E8F5E9; }
+    .item-icon.gate { background: #E3F2FD; }
+    .item-icon.experiment { background: #F3E5F5; }
+    .item-icon.ops { background: #FFF3E0; }
+
+    .drag-item .item-title {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--color-text-primary);
+      flex: 1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .drag-item .item-duration {
+      font-size: 10px;
+      color: var(--color-text-muted);
+      font-family: monospace;
+    }
+
+    .drag-item .item-meta {
+      font-size: 10px;
+      color: var(--color-text-muted);
+      margin-top: 4px;
+      padding-left: 28px;
+    }
+
+    .item-rrule {
+      font-size: 9px;
+      color: var(--color-sage);
+      background: var(--color-sage-light);
+      padding: 1px 5px;
+      border-radius: 3px;
+      margin-right: 6px;
+    }
+
+    /* Calendar Grid */
+    .calendar-container {
+      padding: 16px;
+      overflow: auto;
+    }
+
+    .calendar-grid {
+      display: grid;
+      grid-template-columns: 50px repeat(7, 1fr);
+      background: var(--color-card);
+      border-radius: 12px;
+      border: 1px solid var(--color-sage-border-light);
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
+      overflow: hidden;
+      min-height: 100%;
+    }
+
+    .calendar-header { display: contents; }
+
+    .calendar-header > div {
+      padding: 12px 6px;
+      text-align: center;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--color-text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      border-bottom: 1px solid var(--color-sage-border-light);
+      background: var(--color-bg);
+    }
+
+    .calendar-header .day-date {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--color-text-primary);
+      margin-top: 2px;
+    }
+
+    .calendar-header .today { color: var(--color-sage); }
+
+    .time-column { border-right: 1px solid var(--color-sage-border-light); }
+
+    .time-slot {
+      height: 50px;
+      padding: 2px 6px;
+      font-size: 10px;
+      color: var(--color-text-muted);
+      text-align: right;
+      border-bottom: 1px solid var(--color-sage-border-light);
+    }
+
+    .day-column {
+      position: relative;
+      border-right: 1px solid var(--color-sage-border-light);
+    }
+
+    .day-column:last-child { border-right: none; }
+
+    .hour-row {
+      height: 50px;
+      border-bottom: 1px solid var(--color-sage-border-light);
+    }
+
+    .day-column.today-col { background: rgba(139, 148, 103, 0.03); }
+
+    /* Calendar Events */
+    .calendar-event {
+      position: absolute;
+      left: 3px;
+      right: 3px;
+      border-radius: 6px;
+      padding: 4px 6px;
+      font-size: 11px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      overflow: hidden;
+    }
+
+    main.planning-mode .calendar-event { cursor: move; }
+
+    .calendar-event:hover {
+      transform: scale(1.02);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      z-index: 10;
+    }
+
+    .calendar-event .event-title {
+      font-weight: 500;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .calendar-event .event-time {
+      font-size: 9px;
+      opacity: 0.8;
+      margin-top: 1px;
+    }
+
+    /* Event colors */
+    .event-routine {
+      background: linear-gradient(135deg, #E8F5E9, #C8E6C9);
+      border-left: 3px solid var(--color-green);
+      color: #2E7D32;
+    }
+
+    .event-gate {
+      background: linear-gradient(135deg, #E3F2FD, #BBDEFB);
+      border-left: 3px solid var(--color-blue);
+      color: #1565C0;
+    }
+
+    .event-experiment {
+      background: linear-gradient(135deg, #F3E5F5, #E1BEE7);
+      border-left: 3px solid var(--color-purple);
+      color: #7B1FA2;
+    }
+
+    .event-ops {
+      background: linear-gradient(135deg, #FFF3E0, #FFE0B2);
+      border-left: 3px solid var(--color-orange);
+      color: #E65100;
+    }
+
+    .event-external {
+      background: linear-gradient(135deg, #ECEFF1, #CFD8DC);
+      border-left: 3px solid #607D8B;
+      color: #37474F;
+    }
+
+    .event-unlinked {
+      background: linear-gradient(135deg, #FAFAFA, #EEEEEE);
+      border-left: 3px solid var(--color-text-muted);
+      color: var(--color-text-secondary);
+    }
+
+    .event-unlinked::after {
+      content: "?";
+      position: absolute;
+      top: 3px;
+      right: 4px;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: var(--color-orange);
+      color: white;
+      font-size: 9px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* Right Sidebar */
+    .sidebar {
+      background: var(--color-card);
+      border-left: 1px solid var(--color-sage-border-light);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .sidebar-header {
+      padding: 16px;
+      border-bottom: 1px solid var(--color-sage-border-light);
+    }
+
+    .sidebar-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--color-text-primary);
+    }
+
+    .sidebar-subtitle {
+      font-size: 11px;
+      color: var(--color-text-muted);
+      margin-top: 2px;
+    }
+
+    .sidebar-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px;
+    }
+
+    /* Stats Grid */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+
+    .stat-card {
+      background: var(--color-bg);
+      border-radius: 10px;
+      padding: 12px;
+      text-align: center;
+    }
+
+    .stat-card .stat-value {
+      font-size: 20px;
+      font-weight: 600;
+      color: var(--color-text-primary);
+      font-family: monospace;
+    }
+
+    .stat-card .stat-label {
+      font-size: 10px;
+      color: var(--color-text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      margin-top: 2px;
+    }
+
+    .stat-card.highlight .stat-value { color: var(--color-sage); }
+    .stat-card.warning .stat-value { color: var(--color-orange); }
+
+    /* Sidebar Sections */
+    .sidebar-section { margin-bottom: 16px; }
+
+    .section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+
+    .section-title {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--color-text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+
+    .section-badge {
+      background: var(--color-orange);
+      color: white;
+      font-size: 10px;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 8px;
+    }
+
+    /* Theme Hours */
+    .theme-hours-list { display: flex; flex-direction: column; gap: 10px; }
+
+    .theme-hours-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .theme-color {
+      width: 3px;
+      height: 28px;
+      border-radius: 2px;
+    }
+
+    .theme-color.green { background: var(--color-green); }
+    .theme-color.blue { background: var(--color-blue); }
+    .theme-color.purple { background: var(--color-purple); }
+    .theme-color.orange { background: var(--color-orange); }
+
+    .theme-info { flex: 1; }
+
+    .theme-name {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--color-text-primary);
+    }
+
+    .theme-bar {
+      height: 4px;
+      background: var(--color-sage-light);
+      border-radius: 2px;
+      margin-top: 4px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .theme-bar-fill {
+      height: 100%;
+      border-radius: 2px;
+    }
+
+    .theme-bar-fill.green { background: var(--color-green); }
+    .theme-bar-fill.blue { background: var(--color-blue); }
+    .theme-bar-fill.purple { background: var(--color-purple); }
+    .theme-bar-fill.orange { background: var(--color-orange); }
+
+    .theme-bar-target {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 2px;
+      background: var(--color-text-muted);
+    }
+
+    .theme-hours-value {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--color-text-primary);
+      font-family: monospace;
+      min-width: 45px;
+      text-align: right;
+    }
+
+    /* Unlinked / Warnings */
+    .alert-list { display: flex; flex-direction: column; gap: 6px; }
+
+    .alert-item {
+      background: var(--color-bg);
+      border-radius: 8px;
+      padding: 10px;
+      border: 1px solid var(--color-sage-border-light);
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .alert-item:hover {
+      border-color: var(--color-sage);
+    }
+
+    .alert-item .item-title {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--color-text-primary);
+    }
+
+    .alert-item .item-meta {
+      font-size: 10px;
+      color: var(--color-text-muted);
+      margin-top: 2px;
+    }
+
+    .alert-item .item-suggestion {
+      font-size: 10px;
+      color: var(--color-sage);
+      margin-top: 4px;
+    }
+
+    .alert-item .item-suggestion::before { content: "✨ "; }
+
+    /* Allocation Warnings (Planning) */
+    .allocation-warnings {
+      background: #FFF8E1;
+      border: 1px solid #FFE082;
+      border-radius: 8px;
+      padding: 10px;
+      margin-bottom: 12px;
+      display: none;
+    }
+
+    main.planning-mode .allocation-warnings { display: block; }
+
+    .warning-title {
+      font-size: 11px;
+      font-weight: 600;
+      color: #F57C00;
+      margin-bottom: 6px;
+    }
+
+    .warning-title::before { content: "⚠️ "; }
+
+    .warning-item {
+      font-size: 11px;
+      color: #E65100;
+      padding: 2px 0;
+    }
+
+    /* Sidebar Actions */
+    .sidebar-actions {
+      padding: 12px;
+      border-top: 1px solid var(--color-sage-border-light);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .btn-full { width: 100%; }
+  </style>
+
+</head>
+<body>
+  <header>
+    <div class="header-left">
+      <div class="logo">Kaizen OS</div>
+      <div class="mode-toggle">
+        <button class="mode-btn active" onclick="setMode('view')">View</button>
+        <button class="mode-btn" onclick="setMode('planning')">
+          <span class="mode-dot" style="display:none"></span>
+          Planning
+        </button>
+      </div>
+    </div>
+    <div class="header-center">
+      <div class="week-nav">
+        <button class="week-nav-btn">←</button>
+        <span class="week-label">Dec 30 - Jan 5, 2025</span>
+        <button class="week-nav-btn">→</button>
+      </div>
+    </div>
+    <div class="header-right">
+      <button class="btn-secondary" onclick="window.location='weekly_review.html'">Start Review</button>
+      <button class="btn-icon" title="Sync Calendar">🔄</button>
+      <button class="btn-primary planning-only" style="display:none">Save Plan</button>
+    </div>
+  </header>
+
+  <main class="view-mode" id="main">
+    <!-- Left Panel - Building Blocks (Planning only) -->
+    <aside class="left-panel">
+      <div class="panel-header">
+        <div class="panel-title">Building Blocks</div>
+        <div class="panel-subtitle">Drag to calendar</div>
+      </div>
+      <div class="panel-content">
+        <div class="drag-section">
+          <div class="drag-section-title">Routines</div>
+          <div class="drag-item">
+            <div class="item-row">
+              <div class="item-icon routine">🧘</div>
+              <div class="item-title">Morning Meditation</div>
+              <div class="item-duration">1h</div>
+            </div>
+            <div class="item-meta"><span class="item-rrule">Daily</span>8 AM</div>
+          </div>
+          <div class="drag-item">
+            <div class="item-row">
+              <div class="item-icon routine">🏃</div>
+              <div class="item-title">Gym Session</div>
+              <div class="item-duration">1h</div>
+            </div>
+            <div class="item-meta"><span class="item-rrule">M/W/F</span>4 PM</div>
+          </div>
+          <div class="drag-item">
+            <div class="item-row">
+              <div class="item-icon routine">📖</div>
+              <div class="item-title">Weekly Review</div>
+              <div class="item-duration">2h</div>
+            </div>
+            <div class="item-meta"><span class="item-rrule">Sat</span>11 AM</div>
+          </div>
+        </div>
+        <div class="drag-section">
+          <div class="drag-section-title">Gates</div>
+          <div class="drag-item">
+            <div class="item-row">
+              <div class="item-icon gate">🎯</div>
+              <div class="item-title">MVP Features</div>
+              <div class="item-duration">3h</div>
+            </div>
+            <div class="item-meta">Career • Due Jan 15</div>
+          </div>
+          <div class="drag-item">
+            <div class="item-row">
+              <div class="item-icon gate">📚</div>
+              <div class="item-title">AWS Study</div>
+              <div class="item-duration">2h</div>
+            </div>
+            <div class="item-meta">Career • Due Feb 1</div>
+          </div>
+        </div>
+        <div class="drag-section">
+          <div class="drag-section-title">Experiments</div>
+          <div class="drag-item">
+            <div class="item-row">
+              <div class="item-icon experiment">🧪</div>
+              <div class="item-title">New Workflow</div>
+              <div class="item-duration">2h</div>
+            </div>
+            <div class="item-meta">Side Projects • 6w lag</div>
+          </div>
+        </div>
+        <div class="drag-section">
+          <div class="drag-section-title">Ops</div>
+          <div class="drag-item">
+            <div class="item-row">
+              <div class="item-icon ops">📧</div>
+              <div class="item-title">Email & Admin</div>
+              <div class="item-duration">1h</div>
+            </div>
+            <div class="item-meta">Life Admin</div>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Calendar Grid -->
+    <div class="calendar-container">
+      <div class="calendar-grid">
+        <div class="calendar-header">
+          <div></div>
+          <div>Mon<div class="day-date">30</div></div>
+          <div>Tue<div class="day-date">31</div></div>
+          <div class="today">Wed<div class="day-date">1</div></div>
+          <div>Thu<div class="day-date">2</div></div>
+          <div>Fri<div class="day-date">3</div></div>
+          <div>Sat<div class="day-date">4</div></div>
+          <div>Sun<div class="day-date">5</div></div>
+        </div>
+        <div class="time-column">
+          <div class="time-slot">8 AM</div>
+          <div class="time-slot">9 AM</div>
+          <div class="time-slot">10 AM</div>
+          <div class="time-slot">11 AM</div>
+          <div class="time-slot">12 PM</div>
+          <div class="time-slot">1 PM</div>
+          <div class="time-slot">2 PM</div>
+          <div class="time-slot">3 PM</div>
+          <div class="time-slot">4 PM</div>
+          <div class="time-slot">5 PM</div>
+        </div>
+        <!-- Monday -->
+        <div class="day-column">
+          <div class="hour-row"></div><div class="hour-row"></div><div class="hour-row"></div><div class="hour-row"></div><div class="hour-row"></div><div class="hour-row"></div><div class="hour-row"></div><div class="hour-row"></div><div class="hour-row"></div><div class="hour-row"></div>
+          <div class="calendar-event event-routine" style="top:0;height:50px"><div class="event-title">Meditation</div><div class="event-time">8-9</div></div>
+          <div class="calendar-event event-gate" style="top:100px;height:150px"><div class="event-title">Deep Work: MVP</div><div class="event-time">10-1</div></div>
+          <div class="calendar-event event-unlinked" style="top:300px;height:50px"><div class="event-title">Team Standup</div><div class="event-time">2-3</div></div>
+          <div class="calendar-event event-routine" style="top:400px;height:50px"><div class="event-title">Gym</div><div class="event-time">4-5</div></div>
+        </div>
+        <!-- Tuesday -->
+        <div class="day-column">
+          <div class="hour-row"></div><div class="hour-row"></div><div class="hour-row"></div><div class="hour-row"></div><div class="hour-row"></div><div class="hour-row"></div><div class="hour-row"></div><div class="hour-row"></div><div class="hour-row"></div><div class="hour-row"></div>
+          <div class="calendar-event event-routine" style="top:0;height:50px"><div class="event-title">Meditation</div><div class="event-time">8-9</div></div>
+          <div class="calendar-event event-experiment" style="top:100px;height:100px"><div class="event-title">New Workflow</div><div class="event-time">10-12</div></div>
+          <div class="calendar-event event-ops" style="top:250px;height:50px"><div class="event-title">Email</div><div class="event-time">1-2</div></div>
+          <div class="calendar-event event-gate" style="top:350px;height:100px"><div class="event-title">AWS Study</div><div class="event-time">3-5</div></div>
+        </div>
+        <!-- Wednesday (Today) -->
+        <div class="day-column today-col">
+          <div class="hour-row"></div><div class="hour-row"></div><div class="hour-row"></div><div class="hour-row"></div><div class="hour-row"></div><div class="hour-row"></div><div class="hour-row"></div><div class="hour-row"></div><div class="hour-row"></div><div class="hour-row"></div>
+          <div class="calendar-event event-routine" style="top:0;height:50px"><div class="event-title">Meditation</div><div class="event-time">8-9</div></div>
+          <div class="calendar-event event-gate" style="top:50px;height:200px"><div class="event-title">Deep Work: MVP</div><div class="event-time">9-1</div></div>
+          <div class="calendar-event event-routine" style="top:400px;height:50px"><div class="event-title">Gym</div><div class="event-time">4-5</div></div>
+        </div>
+        <!-- Thursday -->
+        <div class="day-column">
+          <div class="hour-row"></div><div class="hour-row"></div><div class="hour-row"></div><div class="hour-row"></div><div class="hour-row"></div><div class="hour-row"></div><div class="hour-row"></div><div class="hour-row"></div><div class="hour-row"></div><div class="hour-row"></div>
+          <div class="calendar-event event-routine" style="top:0;height:50px"><div class="event-title">Meditation</div><div class="event-time">8-9</div></div>
+          <div class="calendar-event event-unlinked" style="top:100px;height:50px"><div class="event-title">Client Call</div><div class="event-time">10-11</div></div>
+          <div class="calendar-event event-experiment" style="top:200px;height:100px"><div class="event-title">New Workflow</div><div class="event-time">12-2</div></div>
+          <div class="calendar-event event-gate" style="top:350px;height:100px"><div class="event-title">AWS Study</div><div class="event-time">3-5</div></div>
+        </div>
+        <!-- Friday -->
+        <div class="day-column">
+          <div class="hour-row"></div><div class="hour-row"></div><div class="hour-row"></div><div class="hour-row"></div><div class="hour-row"></div><div class="hour-row"></div><div class="hour-row"></div><div class="hour-row"></div><div class="hour-row"></div><div class="hour-row"></div>
+          <div class="calendar-event event-routine" style="top:0;height:50px"><div class="event-title">Meditation</div><div class="event-time">8-9</div></div>
+          <div class="calendar-event event-gate" style="top:100px;height:150px"><div class="event-title">Deep Work: MVP</div><div class="event-time">10-1</div></div>
+          <div class="calendar-event event-external" style="top:300px;height:50px"><div class="event-title">1:1 Manager</div><div class="event-time">2-3</div></div>
+          <div class="calendar-event event-routine" style="top:400px;height:50px"><div class="event-title">Gym</div><div class="event-time">4-5</div></div>
+        </div>
+        <!-- Saturday -->
+        <div class="day-column">
+          <div class="hour-row"></div><div class="hour-row"></div><div class="hour-row"></div><div class="hour-row"></div><div class="hour-row"></div><div class="hour-row"></div><div class="hour-row"></div><div class="hour-row"></div><div class="hour-row"></div><div class="hour-row"></div>
+          <div class="calendar-event event-routine" style="top:50px;height:50px"><div class="event-title">Morning Run</div><div class="event-time">9-10</div></div>
+          <div class="calendar-event event-routine" style="top:150px;height:100px"><div class="event-title">Weekly Review</div><div class="event-time">11-1</div></div>
+        </div>
+        <!-- Sunday -->
+        <div class="day-column">
+          <div class="hour-row"></div><div class="hour-row"></div><div class="hour-row"></div><div class="hour-row"></div><div class="hour-row"></div><div class="hour-row"></div><div class="hour-row"></div><div class="hour-row"></div><div class="hour-row"></div><div class="hour-row"></div>
+          <div class="calendar-event event-routine" style="top:50px;height:50px"><div class="event-title">Morning Run</div><div class="event-time">9-10</div></div>
+          <div class="calendar-event event-routine" style="top:100px;height:100px"><div class="event-title">Weekly Planning</div><div class="event-time">10-12</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <div class="sidebar-title">Week Summary</div>
+        <div class="sidebar-subtitle">Dec 30 - Jan 5</div>
+      </div>
+      <div class="sidebar-content">
+        <div class="stats-grid">
+          <div class="stat-card highlight"><div class="stat-value">34h</div><div class="stat-label">Planned</div></div>
+          <div class="stat-card"><div class="stat-value">28</div><div class="stat-label">Events</div></div>
+          <div class="stat-card"><div class="stat-value">26</div><div class="stat-label">Linked</div></div>
+          <div class="stat-card warning"><div class="stat-value">2</div><div class="stat-label">Unlinked</div></div>
+        </div>
+
+        <div class="allocation-warnings">
+          <div class="warning-title">Allocation Issues</div>
+          <div class="warning-item">Career is 3h under target</div>
+          <div class="warning-item">Health is 2h over target</div>
+        </div>
+
+        <div class="sidebar-section view-only">
+          <div class="section-header">
+            <span class="section-title">Needs Classification</span>
+            <span class="section-badge">2</span>
+          </div>
+          <div class="alert-list">
+            <div class="alert-item">
+              <div class="item-title">Team Standup</div>
+              <div class="item-meta">Mon 2 PM • 1h</div>
+              <div class="item-suggestion">Ops → Work Admin</div>
+            </div>
+            <div class="alert-item">
+              <div class="item-title">Client Call</div>
+              <div class="item-meta">Thu 10 AM • 1h</div>
+              <div class="item-suggestion">Gate → MVP Launch</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="sidebar-section">
+          <div class="section-header"><span class="section-title">Hours by Theme</span></div>
+          <div class="theme-hours-list">
+            <div class="theme-hours-item">
+              <div class="theme-color blue"></div>
+              <div class="theme-info">
+                <div class="theme-name">Career</div>
+                <div class="theme-bar"><div class="theme-bar-fill blue" style="width:85%"></div><div class="theme-bar-target" style="left:100%"></div></div>
+              </div>
+              <div class="theme-hours-value">17h</div>
+            </div>
+            <div class="theme-hours-item">
+              <div class="theme-color green"></div>
+              <div class="theme-info">
+                <div class="theme-name">Health</div>
+                <div class="theme-bar"><div class="theme-bar-fill green" style="width:100%"></div><div class="theme-bar-target" style="left:83%"></div></div>
+              </div>
+              <div class="theme-hours-value">12h</div>
+            </div>
+            <div class="theme-hours-item">
+              <div class="theme-color purple"></div>
+              <div class="theme-info">
+                <div class="theme-name">Side Projects</div>
+                <div class="theme-bar"><div class="theme-bar-fill purple" style="width:67%"></div></div>
+              </div>
+              <div class="theme-hours-value">4h</div>
+            </div>
+            <div class="theme-hours-item">
+              <div class="theme-color orange"></div>
+              <div class="theme-info">
+                <div class="theme-name">Life Admin</div>
+                <div class="theme-bar"><div class="theme-bar-fill orange" style="width:25%"></div></div>
+              </div>
+              <div class="theme-hours-value">1h</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="sidebar-actions">
+        <button class="btn-secondary btn-full view-only" onclick="window.location='weekly_review.html'">Start Week Review</button>
+        <button class="btn-secondary btn-full planning-only" style="display:none">Auto-Place Routines</button>
+        <button class="btn-primary btn-full planning-only" style="display:none">Save & Push to Calendar</button>
+      </div>
+    </aside>
+  </main>
+
+  <script>
+    function setMode(mode) {
+      const main = document.getElementById('main');
+      const btns = document.querySelectorAll('.mode-btn');
+      const planningItems = document.querySelectorAll('.planning-only');
+      const viewItems = document.querySelectorAll('.view-only');
+      const modeDot = document.querySelector('.mode-dot');
+
+      btns.forEach(btn => btn.classList.remove('active'));
+      
+      if (mode === 'planning') {
+        main.className = 'planning-mode';
+        btns[1].classList.add('active', 'planning');
+        modeDot.style.display = 'inline-block';
+        planningItems.forEach(el => el.style.display = 'block');
+        viewItems.forEach(el => el.style.display = 'none');
+      } else {
+        main.className = 'view-mode';
+        btns[0].classList.add('active');
+        btns[1].classList.remove('planning');
+        modeDot.style.display = 'none';
+        planningItems.forEach(el => el.style.display = 'none');
+        viewItems.forEach(el => el.style.display = 'block');
+      }
+    }
+  </script>
+</body>
+</html>

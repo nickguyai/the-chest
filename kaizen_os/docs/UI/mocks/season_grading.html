@@ -1,0 +1,994 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Season Grading - Kaizen OS</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #F5F1EB;
+            color: #1A1A1A;
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 32px;
+        }
+
+        /* Header */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 32px;
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .back-button {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: white;
+            border: 1px solid rgba(139, 148, 103, 0.2);
+            border-radius: 12px;
+            padding: 8px 16px;
+            color: #666666;
+            text-decoration: none;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .back-button:hover {
+            background: rgba(139, 148, 103, 0.05);
+            transform: translateX(-4px);
+        }
+
+        .page-title {
+            font-size: 24px;
+            font-weight: 600;
+            color: #1A1A1A;
+        }
+
+        .grading-mode-badge {
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .grading-mode-badge.mid-season {
+            background: rgba(243, 156, 18, 0.15);
+            color: #D68910;
+        }
+
+        .grading-mode-badge.end-season {
+            background: rgba(139, 148, 103, 0.15);
+            color: #8B9467;
+        }
+
+        /* Progress Bar */
+        .progress-section {
+            background: white;
+            border-radius: 16px;
+            border: 1px solid rgba(139, 148, 103, 0.15);
+            padding: 20px 24px;
+            margin-bottom: 24px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
+        }
+
+        .progress-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .progress-label {
+            font-size: 13px;
+            color: #666666;
+            font-weight: 500;
+        }
+
+        .progress-count {
+            font-size: 14px;
+            font-weight: 600;
+            color: #1A1A1A;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: rgba(139, 148, 103, 0.1);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #8B9467 0%, #9FAA7A 100%);
+            border-radius: 4px;
+            transition: width 0.3s ease;
+        }
+
+        /* Queue Navigation */
+        .queue-nav {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 24px;
+            overflow-x: auto;
+            padding-bottom: 8px;
+        }
+
+        .queue-item {
+            flex-shrink: 0;
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            border: 2px solid rgba(139, 148, 103, 0.2);
+            background: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            font-weight: 600;
+            color: #666666;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .queue-item:hover {
+            border-color: rgba(139, 148, 103, 0.4);
+            transform: translateY(-2px);
+        }
+
+        .queue-item.active {
+            border-color: #8B9467;
+            background: rgba(139, 148, 103, 0.1);
+            color: #8B9467;
+        }
+
+        .queue-item.graded {
+            border-color: #27AE60;
+            background: rgba(39, 174, 96, 0.1);
+            color: #27AE60;
+        }
+
+        .queue-item.graded::after {
+            content: '✓';
+            font-size: 12px;
+        }
+
+        .queue-item.failed {
+            border-color: #E74C3C;
+            background: rgba(231, 76, 60, 0.1);
+            color: #E74C3C;
+        }
+
+        /* Main Grading Card */
+        .grading-card {
+            background: white;
+            border-radius: 20px;
+            border: 2px solid rgba(139, 148, 103, 0.15);
+            padding: 32px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
+            margin-bottom: 24px;
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 24px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid rgba(139, 148, 103, 0.1);
+        }
+
+        .card-info {
+            flex: 1;
+        }
+
+        .card-type-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 12px;
+            border-radius: 8px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 12px;
+        }
+
+        .card-type-badge.gate {
+            background: rgba(139, 148, 190, 0.12);
+            color: #4A5568;
+        }
+
+        .card-type-badge.experiment {
+            background: rgba(229, 115, 115, 0.12);
+            color: #C53030;
+        }
+
+        .card-title {
+            font-size: 22px;
+            font-weight: 600;
+            color: #1A1A1A;
+            margin-bottom: 8px;
+        }
+
+        .card-theme {
+            font-size: 13px;
+            color: #666666;
+        }
+
+        .card-theme span {
+            color: #8B9467;
+            font-weight: 500;
+        }
+
+        .card-meta {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 8px;
+        }
+
+        .card-date {
+            font-size: 13px;
+            color: #666666;
+        }
+
+        .card-date strong {
+            color: #1A1A1A;
+        }
+
+        /* Criteria Section */
+        .criteria-section {
+            margin-bottom: 24px;
+        }
+
+        .section-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #666666;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 16px;
+        }
+
+        .criteria-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .criterion-item {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 16px 20px;
+            background: #F5F1EB;
+            border-radius: 12px;
+            border: 1px solid rgba(139, 148, 103, 0.1);
+            transition: all 0.2s ease;
+        }
+
+        .criterion-item:hover {
+            border-color: rgba(139, 148, 103, 0.25);
+        }
+
+        .criterion-text {
+            flex: 1;
+            font-size: 15px;
+            color: #2C2C2C;
+        }
+
+        .criterion-grade {
+            display: flex;
+            gap: 8px;
+        }
+
+        .grade-btn {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            border: 2px solid rgba(139, 148, 103, 0.2);
+            background: white;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            transition: all 0.2s ease;
+        }
+
+        .grade-btn:hover {
+            transform: scale(1.1);
+        }
+
+        .grade-btn.pass {
+            border-color: rgba(39, 174, 96, 0.3);
+        }
+
+        .grade-btn.pass:hover,
+        .grade-btn.pass.selected {
+            background: rgba(39, 174, 96, 0.15);
+            border-color: #27AE60;
+        }
+
+        .grade-btn.fail {
+            border-color: rgba(231, 76, 60, 0.3);
+        }
+
+        .grade-btn.fail:hover,
+        .grade-btn.fail.selected {
+            background: rgba(231, 76, 60, 0.15);
+            border-color: #E74C3C;
+        }
+
+        /* Notes Section */
+        .notes-section {
+            margin-bottom: 24px;
+        }
+
+        .notes-textarea {
+            width: 100%;
+            min-height: 100px;
+            padding: 16px;
+            border: 2px solid rgba(139, 148, 103, 0.2);
+            border-radius: 12px;
+            font-family: inherit;
+            font-size: 14px;
+            color: #2C2C2C;
+            background: white;
+            resize: vertical;
+            transition: all 0.2s ease;
+        }
+
+        .notes-textarea:focus {
+            outline: none;
+            border-color: #8B9467;
+            box-shadow: 0 0 0 3px rgba(139, 148, 103, 0.1);
+        }
+
+        .notes-textarea::placeholder {
+            color: #999999;
+        }
+
+        /* Overall Grade */
+        .overall-grade-section {
+            background: rgba(139, 148, 103, 0.05);
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 24px;
+        }
+
+        .overall-grade-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .overall-grade-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #1A1A1A;
+        }
+
+        .overall-grade-value {
+            font-size: 24px;
+            font-weight: 700;
+            padding: 8px 20px;
+            border-radius: 12px;
+        }
+
+        .overall-grade-value.pass {
+            background: rgba(39, 174, 96, 0.15);
+            color: #27AE60;
+        }
+
+        .overall-grade-value.fail {
+            background: rgba(231, 76, 60, 0.15);
+            color: #E74C3C;
+        }
+
+        .overall-grade-value.pending {
+            background: rgba(139, 148, 103, 0.1);
+            color: #666666;
+        }
+
+        .grade-summary {
+            font-size: 13px;
+            color: #666666;
+        }
+
+        .grade-summary strong {
+            color: #1A1A1A;
+        }
+
+        /* Navigation Buttons */
+        .nav-buttons {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .btn {
+            padding: 14px 28px;
+            border-radius: 12px;
+            border: none;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn:active {
+            transform: scale(0.98);
+        }
+
+        .btn-secondary {
+            background: white;
+            border: 1px solid rgba(139, 148, 103, 0.2);
+            color: #666666;
+        }
+
+        .btn-secondary:hover {
+            background: rgba(139, 148, 103, 0.05);
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #8B9467 0%, #9FAA7A 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(139, 148, 103, 0.3);
+        }
+
+        .btn-complete {
+            background: linear-gradient(135deg, #27AE60 0%, #2ECC71 100%);
+            color: white;
+        }
+
+        .btn-complete:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(39, 174, 96, 0.3);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+
+        /* Experiment Lag Notice */
+        .lag-notice {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 16px 20px;
+            background: rgba(243, 156, 18, 0.1);
+            border: 1px solid rgba(243, 156, 18, 0.3);
+            border-radius: 12px;
+            margin-bottom: 24px;
+        }
+
+        .lag-notice-icon {
+            font-size: 20px;
+        }
+
+        .lag-notice-text {
+            font-size: 13px;
+            color: #D68910;
+        }
+
+        .lag-notice-text strong {
+            font-weight: 600;
+        }
+
+        /* Completion Modal */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(4px);
+            z-index: 100;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-overlay.active {
+            display: flex;
+        }
+
+        .modal {
+            background: white;
+            border-radius: 20px;
+            padding: 32px;
+            max-width: 480px;
+            width: 90%;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+        }
+
+        .modal-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: #1A1A1A;
+            margin-bottom: 16px;
+            text-align: center;
+        }
+
+        .modal-summary {
+            background: #F5F1EB;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 24px;
+        }
+
+        .summary-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(139, 148, 103, 0.1);
+        }
+
+        .summary-row:last-child {
+            border-bottom: none;
+        }
+
+        .summary-label {
+            font-size: 14px;
+            color: #666666;
+        }
+
+        .summary-value {
+            font-size: 14px;
+            font-weight: 600;
+            color: #1A1A1A;
+        }
+
+        .summary-value.pass {
+            color: #27AE60;
+        }
+
+        .summary-value.fail {
+            color: #E74C3C;
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .container {
+                padding: 16px;
+            }
+
+            .header {
+                flex-direction: column;
+                gap: 16px;
+                align-items: flex-start;
+            }
+
+            .card-header {
+                flex-direction: column;
+                gap: 16px;
+            }
+
+            .card-meta {
+                align-items: flex-start;
+            }
+
+            .nav-buttons {
+                flex-direction: column;
+            }
+
+            .btn {
+                width: 100%;
+                justify-content: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <div class="header-left">
+                <button class="back-button" onclick="goBack()">
+                    <span>←</span>
+                    <span>Back to Season</span>
+                </button>
+                <h1 class="page-title">Season Grading</h1>
+            </div>
+            <span class="grading-mode-badge mid-season" id="gradingModeBadge">Mid-Season Review</span>
+        </div>
+
+        <!-- Progress Section -->
+        <div class="progress-section">
+            <div class="progress-header">
+                <span class="progress-label">Grading Progress</span>
+                <span class="progress-count" id="progressCount">2 of 6 actions graded</span>
+            </div>
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill" style="width: 33%"></div>
+            </div>
+        </div>
+
+        <!-- Queue Navigation -->
+        <div class="queue-nav" id="queueNav">
+            <div class="queue-item graded" data-index="0">1</div>
+            <div class="queue-item graded" data-index="1">2</div>
+            <div class="queue-item active" data-index="2">3</div>
+            <div class="queue-item" data-index="3">4</div>
+            <div class="queue-item" data-index="4">5</div>
+            <div class="queue-item" data-index="5">6</div>
+        </div>
+
+        <!-- Main Grading Card -->
+        <div class="grading-card" id="gradingCard">
+            <div class="card-header">
+                <div class="card-info">
+                    <span class="card-type-badge gate" id="cardTypeBadge">
+                        🚪 Gate
+                    </span>
+                    <h2 class="card-title" id="cardTitle">Launch Kaizen MVP by Q1</h2>
+                    <p class="card-theme">Theme: <span id="cardTheme">Product Development</span></p>
+                </div>
+                <div class="card-meta">
+                    <div class="card-date">
+                        Target: <strong id="cardDate">Mar 31, 2025</strong>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Criteria Section -->
+            <div class="criteria-section">
+                <h3 class="section-title">Criteria</h3>
+                <div class="criteria-list" id="criteriaList">
+                    <div class="criterion-item">
+                        <span class="criterion-text">MVP deployed to production</span>
+                        <div class="criterion-grade">
+                            <button class="grade-btn pass" onclick="gradeCriterion(this, 'pass')" title="Pass">✓</button>
+                            <button class="grade-btn fail" onclick="gradeCriterion(this, 'fail')" title="Fail">✗</button>
+                        </div>
+                    </div>
+                    <div class="criterion-item">
+                        <span class="criterion-text">5 beta users onboarded successfully</span>
+                        <div class="criterion-grade">
+                            <button class="grade-btn pass" onclick="gradeCriterion(this, 'pass')" title="Pass">✓</button>
+                            <button class="grade-btn fail" onclick="gradeCriterion(this, 'fail')" title="Fail">✗</button>
+                        </div>
+                    </div>
+                    <div class="criterion-item">
+                        <span class="criterion-text">Core features functional without critical bugs</span>
+                        <div class="criterion-grade">
+                            <button class="grade-btn pass" onclick="gradeCriterion(this, 'pass')" title="Pass">✓</button>
+                            <button class="grade-btn fail" onclick="gradeCriterion(this, 'fail')" title="Fail">✗</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Notes Section -->
+            <div class="notes-section">
+                <h3 class="section-title">Grading Notes</h3>
+                <textarea class="notes-textarea" id="gradingNotes" placeholder="Add notes about this action's progress, blockers, or learnings..."></textarea>
+            </div>
+
+            <!-- Overall Grade -->
+            <div class="overall-grade-section">
+                <div class="overall-grade-header">
+                    <span class="overall-grade-title">Overall Grade</span>
+                    <span class="overall-grade-value pending" id="overallGrade">Pending</span>
+                </div>
+                <p class="grade-summary" id="gradeSummary">
+                    Grade all criteria to determine the overall result. 
+                    <strong>All criteria must pass</strong> for the action to pass.
+                </p>
+            </div>
+
+            <!-- Navigation Buttons -->
+            <div class="nav-buttons">
+                <button class="btn btn-secondary" onclick="previousCard()" id="prevBtn">
+                    <span>←</span> Previous
+                </button>
+                <button class="btn btn-primary" onclick="nextCard()" id="nextBtn">
+                    Next <span>→</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Completion Modal -->
+    <div class="modal-overlay" id="completionModal">
+        <div class="modal">
+            <h2 class="modal-title">🎉 Grading Complete!</h2>
+            <div class="modal-summary">
+                <div class="summary-row">
+                    <span class="summary-label">Total Actions</span>
+                    <span class="summary-value">6</span>
+                </div>
+                <div class="summary-row">
+                    <span class="summary-label">Passed</span>
+                    <span class="summary-value pass">4</span>
+                </div>
+                <div class="summary-row">
+                    <span class="summary-label">Failed</span>
+                    <span class="summary-value fail">2</span>
+                </div>
+                <div class="summary-row">
+                    <span class="summary-label">Success Rate</span>
+                    <span class="summary-value">67%</span>
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" onclick="closeModal()">Review Again</button>
+                <button class="btn btn-complete" onclick="finishGrading()">Finish & Save</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Mock data for actions queue
+        const actions = [
+            {
+                type: 'gate',
+                title: 'Complete API Integration',
+                theme: 'Product Development',
+                date: 'Feb 15, 2025',
+                criteria: ['API endpoints documented', 'All tests passing', 'Performance benchmarks met'],
+                graded: true,
+                passed: true
+            },
+            {
+                type: 'experiment',
+                title: 'Test Paid Ads Campaign',
+                theme: 'Growth',
+                date: 'Feb 28, 2025',
+                lagWeeks: 4,
+                criteria: ['50+ signups from ads', 'CPA under $20', '20% conversion to paid'],
+                graded: true,
+                passed: false
+            },
+            {
+                type: 'gate',
+                title: 'Launch Kaizen MVP by Q1',
+                theme: 'Product Development',
+                date: 'Mar 31, 2025',
+                criteria: ['MVP deployed to production', '5 beta users onboarded successfully', 'Core features functional without critical bugs'],
+                graded: false,
+                passed: null
+            },
+            {
+                type: 'routine',
+                title: 'Weekly Code Reviews',
+                theme: 'Engineering Excellence',
+                date: 'Ongoing',
+                criteria: ['All PRs reviewed within 24h', 'Code quality score above 85%'],
+                graded: false,
+                passed: null
+            },
+            {
+                type: 'experiment',
+                title: 'New Onboarding Flow',
+                theme: 'User Experience',
+                date: 'Mar 15, 2025',
+                lagWeeks: 2,
+                criteria: ['Completion rate > 80%', 'Time to first action < 5min', 'User satisfaction > 4.0'],
+                graded: false,
+                passed: null
+            },
+            {
+                type: 'ops',
+                title: 'Infrastructure Monitoring',
+                theme: 'Operations',
+                date: 'Mar 31, 2025',
+                criteria: ['99.9% uptime achieved', 'Alert response time < 15min'],
+                graded: false,
+                passed: null
+            }
+        ];
+
+        let currentIndex = 2;
+        let criteriaGrades = {};
+
+        function updateCard() {
+            const action = actions[currentIndex];
+            
+            // Update type badge
+            const typeBadge = document.getElementById('cardTypeBadge');
+            const typeIcons = { gate: '🚪', experiment: '🧪', routine: '🔄', ops: '⚙️' };
+            typeBadge.className = `card-type-badge ${action.type}`;
+            typeBadge.innerHTML = `${typeIcons[action.type]} ${action.type.charAt(0).toUpperCase() + action.type.slice(1)}`;
+            
+            // Update card info
+            document.getElementById('cardTitle').textContent = action.title;
+            document.getElementById('cardTheme').textContent = action.theme;
+            document.getElementById('cardDate').textContent = action.date;
+            
+            // Update criteria
+            const criteriaList = document.getElementById('criteriaList');
+            criteriaList.innerHTML = action.criteria.map((c, i) => `
+                <div class="criterion-item">
+                    <span class="criterion-text">${c}</span>
+                    <div class="criterion-grade">
+                        <button class="grade-btn pass" onclick="gradeCriterion(this, 'pass')" title="Pass">✓</button>
+                        <button class="grade-btn fail" onclick="gradeCriterion(this, 'fail')" title="Fail">✗</button>
+                    </div>
+                </div>
+            `).join('');
+            
+            // Add lag notice for experiments
+            const existingLag = document.querySelector('.lag-notice');
+            if (existingLag) existingLag.remove();
+            
+            if (action.type === 'experiment' && action.lagWeeks) {
+                const lagNotice = document.createElement('div');
+                lagNotice.className = 'lag-notice';
+                lagNotice.innerHTML = `
+                    <span class="lag-notice-icon">⏳</span>
+                    <span class="lag-notice-text">
+                        <strong>Experiment Lag:</strong> ${action.lagWeeks} weeks observation period before final grading
+                    </span>
+                `;
+                document.querySelector('.criteria-section').insertBefore(lagNotice, document.querySelector('.criteria-list'));
+            }
+            
+            // Update queue nav
+            document.querySelectorAll('.queue-item').forEach((item, i) => {
+                item.classList.remove('active');
+                if (i === currentIndex) item.classList.add('active');
+            });
+            
+            // Update nav buttons
+            document.getElementById('prevBtn').disabled = currentIndex === 0;
+            const nextBtn = document.getElementById('nextBtn');
+            if (currentIndex === actions.length - 1) {
+                nextBtn.innerHTML = 'Complete <span>✓</span>';
+                nextBtn.className = 'btn btn-complete';
+            } else {
+                nextBtn.innerHTML = 'Next <span>→</span>';
+                nextBtn.className = 'btn btn-primary';
+            }
+            
+            // Reset overall grade
+            document.getElementById('overallGrade').textContent = 'Pending';
+            document.getElementById('overallGrade').className = 'overall-grade-value pending';
+            document.getElementById('gradingNotes').value = '';
+            criteriaGrades = {};
+        }
+
+        function gradeCriterion(btn, grade) {
+            const gradeDiv = btn.parentElement;
+            const criterionItem = gradeDiv.parentElement;
+            const index = Array.from(criterionItem.parentElement.children).indexOf(criterionItem);
+            
+            // Clear previous selection
+            gradeDiv.querySelectorAll('.grade-btn').forEach(b => b.classList.remove('selected'));
+            
+            // Set new selection
+            btn.classList.add('selected');
+            criteriaGrades[index] = grade;
+            
+            // Check if all criteria are graded
+            const action = actions[currentIndex];
+            if (Object.keys(criteriaGrades).length === action.criteria.length) {
+                const allPassed = Object.values(criteriaGrades).every(g => g === 'pass');
+                const overallGrade = document.getElementById('overallGrade');
+                
+                if (allPassed) {
+                    overallGrade.textContent = 'PASS';
+                    overallGrade.className = 'overall-grade-value pass';
+                } else {
+                    overallGrade.textContent = 'FAIL';
+                    overallGrade.className = 'overall-grade-value fail';
+                }
+                
+                const passCount = Object.values(criteriaGrades).filter(g => g === 'pass').length;
+                document.getElementById('gradeSummary').innerHTML = 
+                    `<strong>${passCount} of ${action.criteria.length}</strong> criteria passed.`;
+            }
+        }
+
+        function previousCard() {
+            if (currentIndex > 0) {
+                currentIndex--;
+                updateCard();
+            }
+        }
+
+        function nextCard() {
+            if (currentIndex < actions.length - 1) {
+                // Mark current as graded
+                actions[currentIndex].graded = true;
+                document.querySelectorAll('.queue-item')[currentIndex].classList.add('graded');
+                
+                currentIndex++;
+                updateProgress();
+                updateCard();
+            } else {
+                // Show completion modal
+                document.getElementById('completionModal').classList.add('active');
+            }
+        }
+
+        function updateProgress() {
+            const graded = actions.filter(a => a.graded).length;
+            const total = actions.length;
+            const percent = Math.round((graded / total) * 100);
+            
+            document.getElementById('progressCount').textContent = `${graded} of ${total} actions graded`;
+            document.getElementById('progressFill').style.width = `${percent}%`;
+        }
+
+        function closeModal() {
+            document.getElementById('completionModal').classList.remove('active');
+        }
+
+        function finishGrading() {
+            alert('Grading saved! Returning to season overview...');
+            // In real app: save to backend and navigate
+        }
+
+        function goBack() {
+            if (confirm('Leave grading? Progress will be saved.')) {
+                // In real app: navigate back
+                alert('Returning to season...');
+            }
+        }
+
+        // Queue item click handler
+        document.querySelectorAll('.queue-item').forEach(item => {
+            item.addEventListener('click', () => {
+                currentIndex = parseInt(item.dataset.index);
+                updateCard();
+            });
+        });
+
+        // URL param for grading mode
+        const urlParams = new URLSearchParams(window.location.search);
+        const mode = urlParams.get('mode') || 'mid';
+        if (mode === 'end') {
+            document.getElementById('gradingModeBadge').textContent = 'End-Season Review';
+            document.getElementById('gradingModeBadge').className = 'grading-mode-badge end-season';
+        }
+
+        // Initialize
+        updateCard();
+    </script>
+</body>
+</html>
