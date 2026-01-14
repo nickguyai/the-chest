@@ -1,7 +1,0 @@
-{
-  "openaiApiKey": "sk-your-openai-api-key-here",
-  "geminiApiKey": "AIzaSy-your-google-api-key-here",
-  "defaultProvider": "openai",
-  "maxRecordings": 100,
-  "audioFormat": "wav"
-}
