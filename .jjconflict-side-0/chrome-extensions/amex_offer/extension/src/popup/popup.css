@@ -1,0 +1,50 @@
+:root {
+  color-scheme: light dark;
+}
+body {
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  margin: 0;
+}
+.wrap {
+  width: 320px;
+  padding: 12px;
+}
+h1 {
+  font-size: 16px;
+  margin: 0 0 8px;
+}
+.row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+input[type=number] {
+  width: 90px;
+}
+.actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+button {
+  padding: 6px 8px;
+  cursor: pointer;
+}
+.danger {
+  background: #b51c1c;
+  color: #fff;
+}
+.status {
+  margin: 6px 0;
+  font-size: 12px;
+}
+.counts {
+  font-size: 12px;
+  margin-bottom: 8px;
+}
+.help {
+  font-size: 12px;
+}
+

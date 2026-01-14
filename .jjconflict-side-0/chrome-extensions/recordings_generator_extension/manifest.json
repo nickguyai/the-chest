@@ -1,0 +1,14 @@
+{
+  "manifest_version": 3,
+  "name": "Recordings Auto Generator",
+  "description": "Automates custom generation with speaker labels for recordings that have not been generated.",
+  "version": "1.0.0",
+  "permissions": ["scripting", "activeTab"],
+  "host_permissions": ["<all_urls>"],
+  "action": {
+    "default_title": "Run Auto Generate"
+  },
+  "background": {
+    "service_worker": "background.js"
+  }
+}

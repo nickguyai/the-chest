@@ -1,0 +1,31 @@
+{
+  "manifest_version": 3,
+  "name": "Amex Offers Helper",
+  "version": "0.1.0",
+  "description": "Click through Amex offer add buttons and save details for export.",
+  "action": {
+    "default_title": "Amex Offers Helper",
+    "default_popup": "src/popup/popup.html"
+  },
+  "permissions": [
+    "storage",
+    "downloads",
+    "activeTab"
+  ],
+  "host_permissions": [
+    "https://*.americanexpress.com/*",
+    "file://*/*"
+  ],
+  "background": {
+    "service_worker": "src/service_worker.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["src/content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
+

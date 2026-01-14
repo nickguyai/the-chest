@@ -1,0 +1,114 @@
+USER:
+Create a tool that enhances your web search experience by redirecting search queries to alternative search engines when the results are unsatisfactory. For instance, if you are not satisfied with Google's results, you can quickly perform the same search on DuckDuckGo or another search engine.
+
+To start, familiarize yourself with how bookmarklets work. A bookmarklet is essentially a bookmark that contains JavaScript code instead of a traditional URL. When you click the bookmarklet, the JavaScript code executes in the context of the current page.
+
+Write a JavaScript function that captures the current search query from the URL of your search engine. For example, Google's search URL includes the query parameter q, such as https://www.google.com/search?q=your+search+terms. Your code should extract the value of q and construct a new URL for the alternative search engine with the same query.
+
+Once you have the JavaScript code, create a new bookmark in your browser. In the URL field, prefix your code with javascript: and paste the code after it. This turns the bookmark into a bookmarklet that you can click while on a search results page.
+
+---
+
+ASSISTANT:
+Here’s how I’m judging success: the bookmarklet should (1) reliably grab the query on major search engines, (2) work even when the URL lacks the query (e.g., typed into the box but not submitted yet), (3) let you jump to another engine instantly, and (4) be small enough to live comfortably in a bookmark. Below are two practical options—pick whichever matches your workflow.
+
+Option A — “Cycle to the next engine” (one-click hop)
+Click the bookmarklet on any supported search results page to jump to the next engine with the same query (great for quick comparisons).
+Readable source
+
+```js
+(function () {
+  // Engines you want to rotate through (order matters)
+  const ENGINES = [
+    { name: "DuckDuckGo", base: "https://duckduckgo.com/?q=", host: "duckduckgo.com" },
+    { name: "Google",     base: "https://www.google.com/search?q=", host: "google." },
+    { name: "Bing",       base: "https://www.bing.com/search?q=", host: "bing.com" },
+    { name: "Brave",      base: "https://search.brave.com/search?q=", host: "search.brave.com" },
+    { name: "Kagi",       base: "https://kagi.com/search?q=", host: "kagi.com" },
+    { name: "Yahoo",      base: "https://search.yahoo.com/search?p=", host: "search.yahoo.com" },
+    { name: "Startpage",  base: "https://www.startpage.com/do/search?q=", host: "startpage.com" },
+    { name: "Yandex",     base: "https://yandex.com/search/?text=", host: "yandex." }
+  ];
+
+  // Try to extract the query from the URL or the visible search box
+  const u = new URL(window.location.href);
+  const params = new URLSearchParams(u.search);
+
+  // Different engines use different keys for the query
+  let q = params.get("q") || params.get("p") || params.get("query") || params.get("text") || "";
+
+  // Fallback: grab from the page’s search input if present
+  if (!q) {
+    const input =
+      document.querySelector('input[name="q"], input[name="p"], input[name="query"], input[name="text"], input[type="search"]');
+    if (input && input.value) q = input.value;
+  }
+
+  // Some URLs encode spaces as '+'
+  if (q) q = q.replace(/\+/g, " ");
+
+  // Identify current engine index (if any)
+  const currentHost = window.location.hostname;
+  let idx = ENGINES.findIndex(e => currentHost.includes(e.host));
+  if (idx === -1) idx = 0; // If unknown engine, start from first
+
+  // Next engine (cycle)
+  const next = ENGINES[(idx + 1) % ENGINES.length];
+
+  // Navigate
+  window.location.href = next.base + encodeURIComponent(q || "");
+})();
+
+```
+
+Minified bookmarklet (copy everything after javascript: into your bookmark URL)
+
+```
+javascript:(()=>{const e=[{name:"DuckDuckGo",base:"https://duckduckgo.com/?q=",host:"duckduckgo.com"},{name:"Google",base:"https://www.google.com/search?q=",host:"google."},{name:"Bing",base:"https://www.bing.com/search?q=",host:"bing.com"},{name:"Brave",base:"https://search.brave.com/search?q=",host:"search.brave.com"},{name:"Kagi",base:"https://kagi.com/search?q=",host:"kagi.com"},{name:"Yahoo",base:"https://search.yahoo.com/search?p=",host:"search.yahoo.com"},{name:"Startpage",base:"https://www.startpage.com/do/search?q=",host:"startpage.com"},{name:"Yandex",base:"https://yandex.com/search/?text=",host:"yandex."}],o=new URL(location.href),a=new URLSearchParams(o.search);let s=a.get("q")||a.get("p")||a.get("query")||a.get("text")||"";if(!s){const e=document.querySelector('input[name="q"], input[name="p"], input[name="query"], input[name="text"], input[type="search"]');e&&e.value&&(s=e.value)}s&&(s=s.replace(/\+/g," "));let t=e.findIndex(e=>location.hostname.includes(e.host));-1===t&&(t=0);const n=e[(t+1)%e.length];location.href=n.base+encodeURIComponent(s||"")})();
+
+```
+
+Option B — “Send this query to a specific engine” (e.g., jump to DuckDuckGo)
+Prefer a fixed destination? Use one bookmarklet per engine. Here’s a compact pattern you can reuse.
+DuckDuckGo (from any search page)
+
+```
+javascript:(()=>{const u=new URL(location.href),p=new URLSearchParams(u.search);let q=p.get('q')||p.get('p')||p.get('query')||p.get('text')||'';if(!q){const i=document.querySelector('input[name="q"],input[name="p"],input[name="query"],input[name="text"],input[type="search"]');if(i&&i.value)q=i.value}q=q.replace(/\+/g,' ');location.href='https://duckduckgo.com/?q='+encodeURIComponent(q)})();
+
+```
+
+Google
+
+```
+javascript:(()=>{const u=new URL(location.href),p=new URLSearchParams(u.search);let q=p.get('q')||p.get('p')||p.get('query')||p.get('text')||'';if(!q){const i=document.querySelector('input[name="q"],input[name="p"],input[name="query"],input[name="text"],input[type="search"]');if(i&&i.value)q=i.value}q=q.replace(/\+/g,' ');location.href='https://www.google.com/search?q='+encodeURIComponent(q)})();
+
+```
+
+Bing
+
+```
+javascript:(()=>{const u=new URL(location.href),p=new URLSearchParams(u.search);let q=p.get('q')||p.get('p')||p.get('query')||p.get('text')||'';if(!q){const i=document.querySelector('input[name="q"],input[name="p"],input[name="query"],input[name="text"],input[type="search"]');if(i&&i.value)q=i.value}q=q.replace(/\+/g,' ');location.href='https://www.bing.com/search?q='+encodeURIComponent(q)})();
+
+```
+
+(Repeat the same pattern with a different base URL for Brave, Kagi, Startpage, Yahoo, Yandex, etc.)
+
+How to install
+
+Create a new bookmark in your browser (e.g., drag the bookmarks bar open and right-click → “Add page”).
+
+Name it something like Cycle search or Search → DDG.
+
+In the URL field, paste your chosen snippet including the javascript: prefix.
+
+Save. While you’re on any search results page, click the bookmarklet to jump.
+
+Notes that make this robust
+
+It understands several common query keys (q, p, query, text) and falls back to the visible search input.
+
+It normalizes + to spaces before re-encoding.
+
+The cycle version recognizes the current engine by hostname and moves to the next one, wrapping around.
+
+If you want, I can tailor the engine list/order, add a quick chooser (a prompt() to pick the destination on click), or preserve extras like “time range” for engines that support it.
